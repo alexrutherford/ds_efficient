@@ -17,6 +17,7 @@ import cPickle as pickle
 import datetime,dateutil.parser
 import traceback
 import pandas as pd
+from nltk import bigrams,trigrams
 
 geo=geolocator.Geolocator()
 geo.init()
@@ -34,7 +35,7 @@ r=False
 # Flag to remove DS files once parsed
 
 v=True
-v=False
+#v=False
 # Verbose flag
 
 chosenCountry=None
@@ -96,6 +97,7 @@ def processFile(l,f,dateFileHash,counterDict,idSet,cartoFile):
     nDomainError=0
     nLocationError=0
     nGenderError=0
+    nTopicError=0
     nTotal=0
     nFileDuplicate=0
     nDeleted=0
@@ -105,7 +107,12 @@ def processFile(l,f,dateFileHash,counterDict,idSet,cartoFile):
     positives=[]
     negatives=[]
 
-    fileString=open(f,'r').read().decode('utf-8')
+    content=[]
+    topicTimes=[]
+    topics=[]
+    # We need a different time counter as there can be multiple topics
+    fileHandle=open(f,'r')
+    fileString=fileHandle.read().decode('utf-8')
     # Read file as one long string and convert to unicode
     for tweet in fileString.split('\n'):
 
@@ -127,7 +134,7 @@ def processFile(l,f,dateFileHash,counterDict,idSet,cartoFile):
                     loc=geo.geoLocate(tweet['twitter']['user']['location'])
                     if len(loc)>0:
 #                    print tweet['twitter']['user']['location'],loc
-                        if not loc[0][3]==chosenCountry:inCountry=False
+                        if loc[0][3]==chosenCountry:inCountry=True
                         # We only want to count tweets in our chosen country if there is one
 
                         tweet['ungp']['geolocation']=loc[0][3]
@@ -199,11 +206,28 @@ def processFile(l,f,dateFileHash,counterDict,idSet,cartoFile):
                     else:
                         negatives.append(0)
                 ####################################   
+                '''Topics'''
+                try:
+                    tweetTopics=tweet['interaction']['tag_tree']['topic']
+                    for t in tweetTopics:
+                        content.append(tweetContent)
+                        topicTimes.append(tweetTime)
+                        topics.append(t)
+                        # Need this to count over topics
+                        # TODO Can this be improved
+                except:
+                    nTopicError+=1
+                ####################################   
                 '''N-grams'''
                 if tweetTime and inCountry:
                     toks=tweetContent.lower().split(' ')
                     for w in [t for t in toks if not t in stopWords]:
-                        counterDict['ngrams'][w]+=1
+                        counterDict['unigrams'][w]+=1
+                    for b in bigrams(toks):
+                        counterDict['bigrams'][b]+=1
+                    for t in trigrams(toks):
+                        counterDict['trigrams'][t]+=1
+
                 ###############################################   
                 '''Write tweet to file'''
                 if not tweetTime==None:
@@ -228,20 +252,41 @@ def processFile(l,f,dateFileHash,counterDict,idSet,cartoFile):
     # TODO add call to delete this tweet from historical files
     # as per http://dev.datasift.com/docs/resources/twitter-deletes
 
-    '''Now aggregate'''    
+    fileString=None
+    fileHandle.close()
+
+    '''Now aggregate'''  
+    '''topics'''
+    tempTopicDf=pd.DataFrame(data={'topics':topics,'content':content},index=topicTimes)
+    # Make a dataframe with contents of this file
+    if len(topics)>0:
+    # Only aggregate topics if some tweets were tagged with topics
+        topicGroups=tempTopicDf.groupby(topics)
+        # Group dataframe by topics
+
+        for topic,topicDf in topicGroups:
+            if not topic in counterDict['topics'].keys():
+                counterDict['topics'][topic]=topicDf.resample('D',how='count')['content']
+                # First time through, add downsampled series
+            else:
+                counterDict['topics'][topic]=counterDict['topics'][topic].add(topicDf.resample('D',how='count')['content'],fill_value=0)
+                # Then add series from each new file to running total
+                # If time ranges don't overlap explicitly add a zero
+                totalDf=pd.concat([tdf for t,tdf in topicGroups])
+    '''sentiments'''
     tempDf=pd.DataFrame(data={'time':times,'pos':positives,'neg':negatives},index=times)
     # Make a dataframe with contents of this file
     # TODO count over something better
 
     if not type(counterDict['time'])==pd.Series:
         counterDict['time']=tempDf.resample('D',how='count')['time']
-        counterDict['pos']=tempDf.resample('D',how='mean')['pos']
-        counterDict['neg']=tempDf.resample('D',how='mean')['neg']
+        counterDict['pos']=tempDf.resample('D',how='sum')['pos']
+        counterDict['neg']=tempDf.resample('D',how='sum')['neg']
         # First time through, add downsampled series
     else:
         counterDict['time']=counterDict['time'].add(tempDf.resample('D',how='count')['time'],fill_value=0)
-        counterDict['pos']=counterDict['pos'].add(tempDf.resample('D',how='mean')['pos'],fill_value=0)
-        counterDict['neg']=counterDict['neg'].add(tempDf.resample('D',how='mean')['neg'],fill_value=0)
+        counterDict['pos']=counterDict['pos'].add(tempDf.resample('D',how='sum')['pos'],fill_value=0)
+        counterDict['neg']=counterDict['neg'].add(tempDf.resample('D',how='sum')['neg'],fill_value=0)
 
     if v:
         print 'TIME\tHASHTAG\tMENTION\tDOMAIN\tLOC\tGENDER\tDEL\tDUP\tTOTAL'
@@ -277,19 +322,24 @@ def initCounters(l):
     counterDict={}
     
     if os.path.isfile(l+counterFileName):
-        print '\tFOUND PICKLE FILE'
+        print '\tFOUND PICKLE FILE',l+counterFileName
         inFile=open(l+counterFileName,'r')
         
         data=pickle.load(inFile)
         
         mentionCounter=data['mentions']
-        ngramCounter=data['ngrams']
+        unigramCounter=data['unigrams']
+        bigramCounter=data['bigrams']
+        trigramCounter=data['trigrams']
         hashTagCounter=data['hashtags']
         domainCounter=data['domains']
         rawDomainCounter=data['rawdomains']
         timeSeries=data['time']
+        posSeries=data['pos']
+        negSeries=data['neg']
         idSet=data['ids']
         dsFileSet=data['ds']
+        topicCounter=data['topics']
 
         inFile.close()
     else:
@@ -297,8 +347,13 @@ def initCounters(l):
         domainCounter=collections.defaultdict(int)
         rawDomainCounter=collections.defaultdict(int)
         mentionCounter=collections.defaultdict(int)
-        ngramCounter=collections.defaultdict(int)
+        unigramCounter=collections.defaultdict(int)
+        bigramCounter=collections.defaultdict(int)
+        trigramCounter=collections.defaultdict(int)
+        topicCounter={}
         timeSeries=None
+        posSeries=None
+        negSeries=None
         idSet=Set()
         dsFileSet=Set()
 
@@ -307,9 +362,14 @@ def initCounters(l):
     counterDict['rawdomains']=rawDomainCounter
     counterDict['mentions']=mentionCounter
     counterDict['time']=timeSeries
+    counterDict['pos']=posSeries
+    counterDict['neg']=negSeries
     counterDict['ids']=idSet
     counterDict['ds']=dsFileSet
-    counterDict['ngrams']=ngramCounter
+    counterDict['topics']=topicCounter
+    counterDict['unigrams']=unigramCounter
+    counterDict['bigrams']=bigramCounter
+    counterDict['trigrams']=trigramCounter
 
     return counterDict,idSet,dsFileSet
 #############
