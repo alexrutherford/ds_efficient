@@ -85,7 +85,7 @@ def fileStream(l):
                     yield root+'/'+f
 
 #############
-def processFile(l,f,dateFileHash,counterDict,idSet,cartoFile):
+def processFile(l,f,dateFileHash,counterDict,idSet,cartoFile,deletionsFile):
 #############
     '''Takes directory corresponding to language directory, file to process
     and list of existing daily files. Adds contents of file to counters
@@ -102,6 +102,7 @@ def processFile(l,f,dateFileHash,counterDict,idSet,cartoFile):
     nFileDuplicate=0
     nDeleted=0
     nGeoError=0
+    nUserError=0
 
     times=[]
     positives=[]
@@ -117,7 +118,8 @@ def processFile(l,f,dateFileHash,counterDict,idSet,cartoFile):
     for tweet in fileString.split('\n'):
 
         tweet=json.loads(tweet)
-        if not 'deleted' in tweet.keys():
+        if not 'deleted' in tweet.keys() and not 'facebook' in tweet.keys():
+        # Catch deletions and facebook content
 
             tweet['ungp']={}
             # For adding our own augmentations
@@ -125,11 +127,18 @@ def processFile(l,f,dateFileHash,counterDict,idSet,cartoFile):
             if not tweet['interaction']['id'] in idSet:
                 nTotal+=1
                 idSet.add(tweet['interaction']['id'])
+
+                try:
+                    id=tweet['twitter']['id']
+                except:
+                    try:
+                        id=tweet['twitter']['retweeted']['id']
+                    except:
+                        pass
                 ###############################################   
                 '''Geolocation'''
                 inCountry=False
                 if not chosenCountry:inCountry=True
-
                 try:
                     loc=geo.geoLocate(tweet['twitter']['user']['location'])
                     if len(loc)>0:
@@ -140,6 +149,17 @@ def processFile(l,f,dateFileHash,counterDict,idSet,cartoFile):
                         tweet['ungp']['geolocation']=loc[0][3]
                 except:
                     nLocationError+=1
+                ###############################################   
+                '''Topics by country'''
+                try:
+                    tweetTopics=tweet['interaction']['tag_tree']['topic']
+                    for t in tweetTopics:
+                        if not t in counterDict['topicCountry'].keys():
+                            counterDict['topicCountry'][t]=collections.defaultdict(int)
+                        counterDict['topicCountry'][t][loc[0][3]]+=1
+                except:
+#                    print traceback.print_exc()
+                    pass
                 ###############################################   
                 try:
                     tweetTime=dateutil.parser.parse(tweet['interaction']['created_at'])
@@ -179,9 +199,24 @@ def processFile(l,f,dateFileHash,counterDict,idSet,cartoFile):
                 try:
                     if inCountry:
                         for d in tweet['links']['domain']:
-                            counterDict['domains'][m.lower()]+=1 
+                            counterDict['domains'][d]+=1 
                 except:
                     nDomainError+=1
+                ###############################################   
+                '''Users'''
+                twitterUser=None
+                try:
+                    twitterUser=tweet['twitter']['retweeted']['user']['screen_name']
+                except:
+                    try:
+                        twitterUser=tweet['twitter']['user']['screen_name']
+                    except:
+                        pass
+                if twitterUser: 
+                    if inCountry:
+                        counterDict['users'][twitterUser]+=1 
+                else:
+                    nUserError+=1
                 
                 ###############################################   
                 '''Gender'''
@@ -197,11 +232,11 @@ def processFile(l,f,dateFileHash,counterDict,idSet,cartoFile):
                 # Only add sentiment if time successfully extracted
                 # else cannot make dataframe 
                     tweetContent=tweet['interaction']['content'].encode('utf-8')
-                    if re.search(r':-\)|:\)',tweetContent):
+                    if re.search(posRe,tweetContent):
                         positives.append(1)
                     else:
                         positives.append(0)
-                    if re.search(r':-\(|:\(',tweetContent):
+                    if re.search(negRe,tweetContent):
                         negatives.append(1)
                     else:
                         negatives.append(0)
@@ -244,9 +279,15 @@ def processFile(l,f,dateFileHash,counterDict,idSet,cartoFile):
                     #Write tweet to daily file
             else:
                 nFileDuplicate+=1
+        elif 'facebook' in tweet.keys():
+            pass
         else:
 #            print tweet
 #            time.sleep(1000)
+            try:
+                deletionsFile.write(str(tweet['twitter']['id'])+'\n')
+            except:
+                deletionsFile.write(str(tweet['twitter']['retweeted']['id'])+'\n')
             nDeleted+=1
     # This tweet has been deleted
     # TODO add call to delete this tweet from historical files
@@ -289,11 +330,11 @@ def processFile(l,f,dateFileHash,counterDict,idSet,cartoFile):
         counterDict['neg']=counterDict['neg'].add(tempDf.resample('D',how='sum')['neg'],fill_value=0)
 
     if v:
-        print 'TIME\tHASHTAG\tMENTION\tDOMAIN\tLOC\tGENDER\tDEL\tDUP\tTOTAL'
-        print nTimeError,'\t',nHashTagError,'\t',nMentionError,'\t',nDomainError,'\t',nLocationError,'\t',nGenderError,'\t',nDeleted,'\t',nFileDuplicate,'\t',nTotal
+        print 'TIME\tHASHTAG\tMENTION\tDOMAIN\tLOC\tGENDER\tUSER\tDEL\tDUP\tTOTAL'
+        print nTimeError,'\t',nHashTagError,'\t',nMentionError,'\t',nDomainError,'\t',nLocationError,'\t',nGenderError,'\t',nUserError,'\t',nDeleted,'\t',nFileDuplicate,'\t',nTotal
     if r:os.remove(f)
     # Delete file when not needed any more
-    return counterDict,dateFileHash,idSet,nFileDuplicate,nTotal,nDeleted
+    return counterDict,dateFileHash,idSet,nFileDuplicate,nTotal,nDeleted,nUserError
 
 #############
 def writeCounters(l,counterDict):
@@ -315,6 +356,19 @@ def initCarto(cartoFileName,l):
 #############
     if os.path.isfile(l+cartoFileName):return csv.writer(open(l+cartoFileName,'a'),delimiter='\t')
     else:return csv.writer(open(l+cartoFileName,'w'),delimiter='\t')
+
+#############
+def initDeletionsFile(l):
+#############
+
+    if not chosenCountry:
+        f=open(l+'/deletions.csv','w')
+    else:
+        f=open(l+'/deletions_'+chosenCountry+'.csv','w')
+    # Open a fresh file for now
+
+    return f
+
 #############
 def initCounters(l):
 #############
@@ -327,6 +381,8 @@ def initCounters(l):
         
         data=pickle.load(inFile)
         
+        topicCountryCounter=data['topicCountry']        
+        userCounter=data['users']
         mentionCounter=data['mentions']
         unigramCounter=data['unigrams']
         bigramCounter=data['bigrams']
@@ -350,7 +406,9 @@ def initCounters(l):
         unigramCounter=collections.defaultdict(int)
         bigramCounter=collections.defaultdict(int)
         trigramCounter=collections.defaultdict(int)
+        userCounter=collections.defaultdict(int)
         topicCounter={}
+        topicCountryCounter={}
         timeSeries=None
         posSeries=None
         negSeries=None
@@ -370,7 +428,8 @@ def initCounters(l):
     counterDict['unigrams']=unigramCounter
     counterDict['bigrams']=bigramCounter
     counterDict['trigrams']=trigramCounter
-
+    counterDict['users']=userCounter
+    counterDict['topicCountry']=topicCountryCounter
     return counterDict,idSet,dsFileSet
 #############
 def main():
@@ -411,6 +470,8 @@ def main():
         
         counterDict,idSet,dsFileSet=initCounters(l)
         # Look for dumpfile to load in counters, if not there create empty ones
+   
+        deletionsFile=initDeletionsFile(l)
     
         cartoFile=initCarto(cartoFileName,l)
      
@@ -428,7 +489,7 @@ def main():
             if not f in dsFileSet:
                 if v:print '\tPROCESSING',f
 
-                counterDict,dateFileHash,idSet,nFileDuplicates,nFile,nFileDeletes=processFile(l,f,dateFileHash,counterDict,idSet,cartoFile) 
+                counterDict,dateFileHash,idSet,nFileDuplicates,nFile,nFileDeletes,nUserError=processFile(l,f,dateFileHash,counterDict,idSet,cartoFile,deletionsFile) 
                 # Read file and process line by line
                 # Update hash of daily files in case new ones are created
                 nDuplicates+=nFileDuplicates
@@ -443,6 +504,9 @@ def main():
 
         writeCounters(l,counterDict)
         # Persist counters to pickle file
+
+        deletionsFile.close()
+
         if v:
             print 'AT END', 
             printTop(counterDict['hashtags'],10)

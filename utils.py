@@ -2,6 +2,9 @@
 import operator
 stopWords=['a','the','of']
 
+posRe=r':-\)|:\)'
+negRe=r':-\(|:\('
+
 #############
 def printTop(d,n=10):
 #############
