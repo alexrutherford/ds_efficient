@@ -9,7 +9,7 @@ Cycles through all files from DataSift ```DataSift*json``` and places tweets in 
 Considers tweet IDs in ```deletions.csv```, removes from daily files and adjusts counters.
 
 
-3. ```query_dump.ipynb```
+3. ```query\_dump.ipynb```
 Reads in serialised data from ```counters.dat``` and produces plots.
 
 #Dependencies
