@@ -8,6 +8,9 @@ Cycles through all files from DataSift ```DataSift*json``` and places tweets in 
 2. ```python process_deletions.py```
 Considers tweet IDs in ```deletions.csv```, removes from daily files and adjusts counters.
 
+3. ```query_dump.ipynb```
+Reads in serialised data from ```counters.dat``` and produces plots.
+
 #Dependencies
 * Pandas
 * Gensim
