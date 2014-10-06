@@ -302,9 +302,10 @@ def main():
                     
                     times,positives,negatives,topicTimes,topics,counterDict,content=countDuplicate(tweet,times,positives,negatives,topicTimes,topics,counterDict,content)
                     
-                    if tweetId in deletions:
-                        print 'DUPLICATE!!!'
-                        time.sleep(10000)
+                    while tweetId in deletions:
+                        print 'DUPLICATE!!!',tweetId
+                        deletions.remove(tweetId)
+                        time.sleep(1)
 #                    print 'REMOVING',tweetId,len(deletions)
                 else:
                     tempDailyFileHandle.write(json.dumps(tweet)+'\n')
