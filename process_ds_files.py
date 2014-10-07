@@ -24,7 +24,7 @@ geo.init()
 
 genderClassifier=gender.Gender()
 
-dataDirectory='../data/'
+dataDirectory='../data_test/'
 dateFileFormat='/[0-9][0-9][0-9][0-9]_*[0-9][0-9]_[0-9][0-9].json'
 
 nDuplicates=0
@@ -139,10 +139,11 @@ def processFile(l,f,dateFileHash,counterDict,idSet,cartoFile,deletionsFile):
                 '''Geolocation'''
                 inCountry=False
                 if not chosenCountry:inCountry=True
+                # If chosenCountry has been set, test to see if
+                # tweet geolocated there
                 try:
                     loc=geo.geoLocate(tweet['twitter']['user']['location'])
                     if len(loc)>0:
-#                    print tweet['twitter']['user']['location'],loc
                         if loc[0][3]==chosenCountry:inCountry=True
                         # We only want to count tweets in our chosen country if there is one
 
@@ -166,10 +167,6 @@ def processFile(l,f,dateFileHash,counterDict,idSet,cartoFile,deletionsFile):
                     if inCountry:times.append(tweetTime)
                 except:
                     nTimeError+=1
-                    '''print traceback.print_exc()
-                    print tweet.keys()
-                    print tweet['interaction']
-                    time.sleep(1000000)'''
                     tweetTime=None
                 ###############################################   
                 '''Carto'''
@@ -272,7 +269,6 @@ def processFile(l,f,dateFileHash,counterDict,idSet,cartoFile,deletionsFile):
                                 
                     if inCountry and not tweetFileName in dateFileHash.keys():
                         dateFileHash[tweetFileName]=open(tweetFileName,'w')
-#                print '!!!!!!ADDING',tweetFileName,'TO HASH'
                     # Add to hash
                     if inCountry:
                         dateFileHash[tweetFileName].write(json.dumps(tweet).encode('utf-8')+'\n')
@@ -280,17 +276,17 @@ def processFile(l,f,dateFileHash,counterDict,idSet,cartoFile,deletionsFile):
             else:
                 nFileDuplicate+=1
         elif 'facebook' in tweet.keys():
+        # For now ignore FB content
+        # TODO do something with these?
             pass
         else:
-#            print tweet
-#            time.sleep(1000)
             try:
                 deletionsFile.write(str(tweet['twitter']['id'])+'\n')
             except:
                 deletionsFile.write(str(tweet['twitter']['retweeted']['id'])+'\n')
             nDeleted+=1
     # This tweet has been deleted
-    # TODO add call to delete this tweet from historical files
+    # process_deletions.py will deal with these
     # as per http://dev.datasift.com/docs/resources/twitter-deletes
 
     fileString=None
@@ -348,19 +344,24 @@ def writeCounters(l,counterDict):
         if v:print 'NO OLD PICKLE FILE TO REMOVE'
     outFile=open(l+counterFileName,'w')
    
-    pickle.dump(counterDict,outFile)
+    pickle.dump(counterDict,outFile,2)
     
     outFile.close()
 #############
 def initCarto(cartoFileName,l):
 #############
+    '''
+    Returns an new CSV object to write cartoDB info to
+    '''
     if os.path.isfile(l+cartoFileName):return csv.writer(open(l+cartoFileName,'a'),delimiter='\t')
     else:return csv.writer(open(l+cartoFileName,'w'),delimiter='\t')
 
 #############
 def initDeletionsFile(l):
 #############
-
+    '''
+    Returns an open file handle to write deleted tweets
+    '''
     if not chosenCountry:
         f=open(l+'/deletions.csv','w')
     else:
@@ -372,7 +373,10 @@ def initDeletionsFile(l):
 #############
 def initCounters(l):
 #############
-    '''Make a dictionary of counters over useful things'''
+    '''
+    Returns a dictionary of counters, a set of all tweet IDs 
+    processed and a set of DataSift files already processed
+    '''
     counterDict={}
     
     if os.path.isfile(l+counterFileName):
@@ -430,21 +434,17 @@ def initCounters(l):
     counterDict['trigrams']=trigramCounter
     counterDict['users']=userCounter
     counterDict['topicCountry']=topicCountryCounter
+
     return counterDict,idSet,dsFileSet
 #############
 def main():
 #############
 
-#    syncFromS3()
-    # Add call here to grab data from S3
-    # Might be redundant with streaming data
-
     languageDirectories=glob.glob(dataDirectory+'*')
     # Top level directories in dataDirectory refer to language buckets
     # Count these separately. Directory structure within these can be arbitrary
-
-#    idDateRanges={}
-    # This holds the highest range
+    # e.g. if dataDirectory is '../data/', language directories might be
+    # '../data/english/','../data/french/'
 
     for l in languageDirectories:
         print 'LANGUAGE',l
@@ -512,11 +512,14 @@ def main():
             printTop(counterDict['hashtags'],10)
             print '----------------------------------------------'
         if True:
-#            print counterDict['time']
             print 'SKIPPED',nSkippedFiles
             print 'DUPLICATES',nDuplicates
             print 'DELETED',nDeletes
             print 'TOTAL NEW',nTotal
+
+        for d in dateFileHash.values():
+            d.close()
+        # Close out fdaily files
 #############################
 if __name__=="__main__":
     main()

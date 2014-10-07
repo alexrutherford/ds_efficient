@@ -42,6 +42,12 @@ deletionsFile=csv.reader(open(languageDirectory+'/'+'deletions.csv','r'),delimit
 ############
 def overWriteDailyFiles():
 ############
+    '''
+    Replaces daily files including deleted content
+    with daily file _excluding_ deleted content
+    e.g. replaces 2014_01_01.json by 2014_01_01_tmp.json
+    TODO implement overwriting
+    '''
     print 'MV *tmp.json to *.json'
     print len(glob.glob(languageDirectory+'*tmp.json'))
 ############
@@ -51,24 +57,22 @@ def updateSets(old,new):
 ############
 def updateData(old,new):
 ############
-    for k in ['hashtags','mentions','users','domains']:
+    for k in ['hashtags','mentions','users','domains','unigrams','bigrams','trigrams']:
     # Leave out unigrams/bigrams/trigrams for now
     # Counters
         print 'UPDATING',k
         for kk in new[k].keys():
             if kk in old[k].keys():
-#                print kk,old[k][kk],
                 old[k][kk]-=new[k][kk]
-#                print old[k][kk]
             else:
                 print 'ERROR',k,kk,new[k][kk]
             # This shouldn't ever happen
     old['ids']-=new['ids']
     # Id set
     for k in ['time','pos','neg']:
-        print k
+    # Update sereis
+        print 'UPDATING',k
         old[k]=old[k].subtract(new[k],fill_value=0)
-    #series
 
     for t in new['topicCountry'].keys():
         for c in new['topicCountry'][t].keys():
@@ -79,6 +83,10 @@ def updateData(old,new):
 ############
 def overWriteData(newData,l):
 ############
+    '''
+    Update serialised file
+    TODO overwrite
+    '''
     dataFile=open(l+'/counters_updated.dat','w')
     if chosenCountry:     
         dataFile=open(l+'/counters_'+chosenCountry+'.dat','w')
@@ -86,6 +94,9 @@ def overWriteData(newData,l):
 ############
 def getOldData(l):
 ############
+    '''
+    Read in old serialsied file and return dictionary
+    '''
     print 'READING OLD DATA'
     dataFile=open(l+'/counters.dat','r')
     if chosenCountry:     
@@ -97,21 +108,18 @@ def getOldData(l):
 def countDuplicate(tweet,times,positives,negatives,topicTimes,topics,counterDict,content):
 ############
     '''
-    Take tweet, count mentions, hashtag etc and add to temporoary list
+    Take tweet, count mentions, hashtag etc and add to temporary list
     '''
     ###############################################   
     '''Geolocation'''
     inCountry=False
     if not chosenCountry:inCountry=True
-#    print inCountry
     
     tweetContent=tweet['interaction']['content'].encode('utf-8')
-#    print 'CONTENT=>',tweetContent
          
     try:
         loc=geo.geoLocate(tweet['twitter']['user']['location'])
         if len(loc)>0:
-#                    print tweet['twitter']['user']['location'],loc
             if loc[0][3]==chosenCountry:inCountry=True
             # We only want to count tweets in our chosen country if there is one
 
@@ -230,7 +238,8 @@ def main():
     dailyFiles=glob.glob(languageDirectory+dateFileFormat)
     dailyFiles.sort()
     dailyFiles.reverse()
-# Start with most recent file first
+    # Start with most recent file first
+    # As deletions most likely to be recent
 
     '''Make fresh counter'''
     counterDict={}
@@ -258,8 +267,10 @@ def main():
     breakFlag=False
 
     for f in dailyFiles:
-        '''Loop through daily files starting with most recent
+        '''
+        Loop through daily files starting with most recent
         keep looking for deleted tweets until all found
+        TODO sometimes not all deletions are found, why?
         '''
         tempDailyFile=f.replace('.json','_tmp.json')
         print f,tempDailyFile
@@ -277,7 +288,7 @@ def main():
             except:
                 print tweet
                 print traceback.print_exc()
-                time.sleep(1000)
+                time.sleep(10)
 
             isFb=False
             if u'facebook' in tweet.keys():
@@ -294,7 +305,6 @@ def main():
                 pass
             try:
                 if tweetId in deletions:
-#                    print 'FOUND IT',tweetId
                    
                     deletions.remove(tweetId)
                   
@@ -306,7 +316,6 @@ def main():
                         print 'DUPLICATE!!!',tweetId
                         deletions.remove(tweetId)
                         time.sleep(1)
-#                    print 'REMOVING',tweetId,len(deletions)
                 else:
                     tempDailyFileHandle.write(json.dumps(tweet)+'\n')
             except:
@@ -319,8 +328,11 @@ def main():
                 break
             nLine+=1
         if breakFlag:break
+
         print len(deletions),'LEFT TO FIND',deletions[0]
+
         tempDailyFileHandle.close()
+
     print 'LOOPED THROUGH ALL FILES'
     print len(deletions),'DELETIONS LEFT TO FIND'
     print nError
@@ -328,7 +340,6 @@ def main():
     
     '''Now aggregate'''  
     '''topics'''
-#    tempTopicDf=pd.DataFrame(data={'topics':topics,'content':content},index=topicTimes)
     tempTopicDf=pd.DataFrame(data={'topics':topics,'content':content},index=topicTimes)
     # Make a dataframe with contents of this file
     if len(topics)>0:
@@ -350,8 +361,6 @@ def main():
     counterDict['time']=tempDf.resample('D',how='count')['time']
     counterDict['pos']=tempDf.resample('D',how='sum')['pos']
     counterDict['neg']=tempDf.resample('D',how='sum')['neg']
-
-    for l in times,positives,negatives,topicTimes,topics:print len(l)
 
     oldData=getOldData(languageDirectory)
     newData=updateData(oldData,counterDict)

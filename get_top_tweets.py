@@ -14,19 +14,19 @@ dateFileFormat='/[0-9][0-9][0-9][0-9]_*[0-9][0-9]_[0-9][0-9].json'
 topics=[u'None',u'General',u'Politics/Opinion',u'Economy',u'Risk/Disaster',u'Energy',u'Weather',u'Agriculture/Forestry',u'Oceans/Water',u'Arctic']
 topicHash={'General':'general','Politics/Opinion':'politics','Economy':'economy','Risk/Disaster':'risk','Energy':'energy','Weather':'weather','Agriculture/Forestry':'agriculture','Oceans/Water':'oceans','Arctic':'arctic'}
 # Maps from topics as in datasift tags and output file names
-
+# TODO construct this list automatically
 ##############
 def writeTopTweets(tweetCounter,tweetTopicCounter,topTopicFollowers,topFollowers):
 ##############
     sortedTweets=sorted(tweetCounter.iteritems(), key=operator.itemgetter(1))
     sortedTweets.reverse()
-    outFile=csv.writer(open('all.top.retweet','w'),delimiter='\t')
+    outFile=csv.writer(open('data/all.top.retweet','w'),delimiter='\t')
 
     for t in sortedTweets[0:10]:
         outFile.writerow([t[0]])
 # Write out top tweet ids for all tweets
 
-    outFile=csv.writer(open('all.top.followers','w'),delimiter='\t')
+    outFile=csv.writer(open('data/all.top.followers','w'),delimiter='\t')
     for t in reversed(topFollowers[0:10]):
         outFile.writerow([t[1]])
 # Write out top follower count tweet id's for all tweets
@@ -34,7 +34,7 @@ def writeTopTweets(tweetCounter,tweetTopicCounter,topTopicFollowers,topFollowers
     for k,v in reversed(topTopicFollowers.items()[0:10]):
         print k
         if not k=='None':
-            fileName=topicHash[k]+'.top.followers'
+            fileName='data/'+topicHash[k]+'.top.followers'
             outFile=csv.writer(open(fileName,'w'),delimiter='\t')
             for id in reversed(SortedSet(v)):
             # Using SortedSet() as a hack as there inexplicably appears a duplicate 
@@ -51,10 +51,9 @@ def writeTopTweets(tweetCounter,tweetTopicCounter,topTopicFollowers,topFollowers
         if not k=='None':
             sortedTweets=sorted(v.iteritems(),key=lambda x:x[1])
             sortedTweets.reverse()
-            fileName=topicHash[k]+'.top.retweet'
+            fileName='data'+topicHash[k]+'.top.retweet'
             outFile=csv.writer(open(fileName,'w'),delimiter='\t')
             print k
-#        print '------------'
             for t in sortedTweets[0:10]:
                 print '\t',t[1],t[0][0],t[0][1]
                 if t[1]>1:
@@ -64,19 +63,17 @@ def writeTopTweets(tweetCounter,tweetTopicCounter,topTopicFollowers,topFollowers
 # Write out top retweeted tweet id's by topic
     outFile=None
 
-
 ##############
 def inLastNDays(d,l,n=7):
 ##############
+    '''
+    Tests if daily tweet file l+d corresponds to last n days
+    '''
     fileTimes=d.partition(l+'/')[2].replace('.json','').split('_')
     fileTimes=[int(f) for f in fileTimes]
     # These are date components: 2104,7,21
 
-#    print fileTimes,datetime.datetime(fileTimes[0],fileTimes[1],fileTimes[2])
-
     timeLimit=datetime.datetime.now()-datetime.timedelta(7)
-#    print '\t',timeLimit   
-#    print '\t',(datetime.datetime(fileTimes[0],fileTimes[1],fileTimes[2])-timeLimit).days
 
     timeDiff=(timeLimit-(datetime.datetime(fileTimes[0],fileTimes[1],fileTimes[2]))).days
 
@@ -87,6 +84,11 @@ def inLastNDays(d,l,n=7):
 ##############
 def countTweets(files):
 ##############
+    '''
+    Loops through all files in last n days
+    Counts retweets by tweets sharing same content
+    Keeps track of tweets by users with msot followers
+    '''
     nTotal=0
     nErrors=0
     nTopicErrors=0
@@ -123,8 +125,6 @@ def countTweets(files):
                 tweet=json.loads(line)
             except:
                 print 'PARSE ERROR',f,nLine
-#                print traceback.print_exc()
-#                print line
             try:
 
                 try:
@@ -181,7 +181,6 @@ def main():
     languageDirectories=glob.glob(dataDirectory+'*')
     
     for l in languageDirectories:
-    
         dateFileNames=glob.glob(l+dateFileFormat)
 
     filesInRange=[f for f in dateFileNames if inLastNDays(f,l,14)]
