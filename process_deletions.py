@@ -62,9 +62,9 @@ def updateData(old,new):
     # Counters
         print 'UPDATING',k
         for kk in new[k].keys():
-            if kk in old[k].keys():
+            try:
                 old[k][kk]-=new[k][kk]
-            else:
+            except:
                 print 'ERROR',k,kk,new[k][kk]
             # This shouldn't ever happen
     old['ids']-=new['ids']
@@ -286,16 +286,18 @@ def main():
             try:
                 tweet=json.loads(tweet)
             except:
-                print tweet
+#                print tweet
                 print traceback.print_exc()
+                tweet=None
                 time.sleep(10)
 
             isFb=False
-            if u'facebook' in tweet.keys():
-                isFb=True
+            if tweet:
+                if u'facebook' in tweet.keys():
+                    isFb=True
 
-            if tweet['interaction']['type']==u'twitter':nTwitter+=1
-            if isFb:nFb+=1
+                if tweet['interaction']['type']==u'twitter':nTwitter+=1
+                if isFb:nFb+=1
             
             tweetId=None
 
