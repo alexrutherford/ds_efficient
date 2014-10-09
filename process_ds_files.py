@@ -18,6 +18,7 @@ import datetime,dateutil.parser
 import traceback
 import pandas as pd
 from nltk import bigrams,trigrams
+import langid
 
 geo=geolocator.Geolocator()
 geo.init()
@@ -120,6 +121,21 @@ def processFile(l,f,dateFileHash,counterDict,idSet,cartoFile,deletionsFile):
         tweet=json.loads(tweet)
         if not 'deleted' in tweet.keys() and not 'facebook' in tweet.keys():
         # Catch deletions and facebook content
+           
+            tweetContent=tweet['interaction']['content'].encode('utf-8')
+            
+            lang1,lang2,lang3='','','' 
+            try:
+                lang1=tweet['language']['tag']
+            except:pass
+            try:
+                lang2=tweet['twitter']['lang']
+            except:pass
+            try:
+                lang3=langid.classify(tweetContent)[0]
+            except:pass
+            # Count detectedlanguage from twitter and DataSift and through langid
+            counterDict['languages'][(lang1,lang2,lang3)]+=1
 
             tweet['ungp']={}
             # For adding our own augmentations
@@ -228,7 +244,6 @@ def processFile(l,f,dateFileHash,counterDict,idSet,cartoFile,deletionsFile):
                 if tweetTime and inCountry:
                 # Only add sentiment if time successfully extracted
                 # else cannot make dataframe 
-                    tweetContent=tweet['interaction']['content'].encode('utf-8')
                     if re.search(posRe,tweetContent):
                         positives.append(1)
                     else:
@@ -400,6 +415,7 @@ def initCounters(l):
         idSet=data['ids']
         dsFileSet=data['ds']
         topicCounter=data['topics']
+        languageCounter=data['languages']
 
         inFile.close()
     else:
@@ -411,6 +427,7 @@ def initCounters(l):
         bigramCounter=collections.defaultdict(int)
         trigramCounter=collections.defaultdict(int)
         userCounter=collections.defaultdict(int)
+        languageCounter=collections.defaultdict(int)
         topicCounter={}
         topicCountryCounter={}
         timeSeries=None
@@ -434,6 +451,7 @@ def initCounters(l):
     counterDict['trigrams']=trigramCounter
     counterDict['users']=userCounter
     counterDict['topicCountry']=topicCountryCounter
+    counterDict['languages']=languageCounter
 
     return counterDict,idSet,dsFileSet
 #############

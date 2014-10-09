@@ -60,7 +60,7 @@ def updateData(old,new):
     for k in ['hashtags','mentions','users','domains','unigrams','bigrams','trigrams']:
     # Leave out unigrams/bigrams/trigrams for now
     # Counters
-        print 'UPDATING',k
+        print 'UPDATING',k,len(new[k].keys())
         for kk in new[k].keys():
             try:
                 old[k][kk]-=new[k][kk]

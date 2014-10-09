@@ -28,7 +28,14 @@ plotCycle=itertools.cycle(plotColours)
 inFile=open('../data_test/french-with-environnement/counters.dat','r')
 data=pickle.load(inFile)
 
-chosenLanguage='french'
+chosenLanguage='english'
+
+if '-l' in sys.argv:
+    # Flag for filtering by country
+    i=(sys.argv).index('-l')
+    chosenLanguage=sys.argv[i+1]
+    print 'ADDED LANG FLAG',chosenLanguage
+    time.sleep(1)
 
 #######
 def writeTop(counter,f):
