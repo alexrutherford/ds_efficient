@@ -25,7 +25,7 @@ geo.init()
 
 genderClassifier=gender.Gender()
 
-dataDirectory='../data_test/'
+dataDirectory='../data/'
 dateFileFormat='/[0-9][0-9][0-9][0-9]_*[0-9][0-9]_[0-9][0-9].json'
 
 nDuplicates=0
