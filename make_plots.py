@@ -25,7 +25,7 @@ import itertools
 plotColours=['#1B6E44','#6D1431','#FF5500','#5D6263','#009D97','#c84699','#71be45','#3F8CBC','#FFC200']
 plotCycle=itertools.cycle(plotColours)
 
-inFile=open('../data_test/french-with-environnement/counters.dat','r')
+inFile=open('../data/baseline3/counters.dat','r')
 data=pickle.load(inFile)
 
 chosenLanguage='english'
@@ -62,6 +62,7 @@ def main():
     topicSums=sorted(topicSums.items(), key=operator.itemgetter(1))
 
     maxs={}
+    sortedMaxs=[]
     for a,b in data['topics'].items():
         if not a==u'NaN':
             maxs[a]=b.sum()
