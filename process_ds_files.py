@@ -25,7 +25,7 @@ geo.init()
 
 genderClassifier=gender.Gender()
 
-dataDirectory='../data/'
+dataDirectory='../data_test/'
 dateFileFormat='/[0-9][0-9][0-9][0-9]_*[0-9][0-9]_[0-9][0-9].json'
 
 nDuplicates=0
@@ -38,6 +38,12 @@ r=False
 v=True
 #v=False
 # Verbose flag
+if '-d' in sys.argv:
+    # Flag for filtering by country
+    i=(sys.argv).index('-d')
+    dataDirectory=sys.argv[i+1]
+    print 'SET DATA DIRECTORY',dataDirectory
+    time.sleep(1)
 
 chosenCountry=None
 
@@ -104,11 +110,13 @@ def processFile(l,f,dateFileHash,counterDict,idSet,cartoFile,deletionsFile):
     nDeleted=0
     nGeoError=0
     nUserError=0
+    nFacebook=0
 
     times=[]
     positives=[]
     negatives=[]
 
+    fbTimes=[]
     content=[]
     topicTimes=[]
     topics=[]
@@ -119,9 +127,11 @@ def processFile(l,f,dateFileHash,counterDict,idSet,cartoFile,deletionsFile):
     for tweet in fileString.split('\n'):
 
         tweet=json.loads(tweet)
+        #detectedLang=langid.classify(tweet['interaction']['content'].encode('utf-8'))
+
         if not 'deleted' in tweet.keys() and not 'facebook' in tweet.keys():
         # Catch deletions and facebook content
-           
+        ## TODO add test of detectedLang    
             tweetContent=tweet['interaction']['content'].encode('utf-8')
             
             lang1,lang2,lang3='','','' 
@@ -290,16 +300,31 @@ def processFile(l,f,dateFileHash,counterDict,idSet,cartoFile,deletionsFile):
                     #Write tweet to daily file
             else:
                 nFileDuplicate+=1
+        ###################################
         elif 'facebook' in tweet.keys():
+        ###################################
         # For now ignore FB content
-        # TODO do something with these?
-            pass
-        else:
+            if not tweet['interaction']['id'] in idSet:
+                nTotal+=1
+                idSet.add(tweet['interaction']['id'])
+                 
+                nFacebook+=1
+                tweetFileName=None
+                fbTime=dateutil.parser.parse(tweet['interaction']['created_at'])
+                tweetFileName=datetime.datetime(fbTime.year,fbTime.month,fbTime.day)
+                if tweetFileName:
+                    fbTimes.append(tweetFileName)
+        ###################################
+        elif 'deleted' in tweet.keys():
+        ###################################
             try:
                 deletionsFile.write(str(tweet['twitter']['id'])+'\n')
             except:
                 deletionsFile.write(str(tweet['twitter']['retweeted']['id'])+'\n')
             nDeleted+=1
+        else:
+            print 'WEIRD',tweet.keys()
+            time.sleep(10000)
     # This tweet has been deleted
     # process_deletions.py will deal with these
     # as per http://dev.datasift.com/docs/resources/twitter-deletes
@@ -339,13 +364,19 @@ def processFile(l,f,dateFileHash,counterDict,idSet,cartoFile,deletionsFile):
         counterDict['time']=counterDict['time'].add(tempDf.resample('D',how='count')['time'],fill_value=0)
         counterDict['pos']=counterDict['pos'].add(tempDf.resample('D',how='sum')['pos'],fill_value=0)
         counterDict['neg']=counterDict['neg'].add(tempDf.resample('D',how='sum')['neg'],fill_value=0)
+    ''' facebook'''
+    tempFbDf=pd.DataFrame(data={'time':fbTimes},index=fbTimes)
 
+    if not type(counterDict['fb'])==pd.Series:
+        counterDict['fb']=tempFbDf.resample('D',how='count')['time']
+    else:
+        counterDict['fb']=counterDict['fb'].add(tempFbDf.resample('D',how='count')['time'],fill_value=0)
     if v:
-        print 'TIME\tHASHTAG\tMENTION\tDOMAIN\tLOC\tGENDER\tUSER\tDEL\tDUP\tTOTAL'
-        print nTimeError,'\t',nHashTagError,'\t',nMentionError,'\t',nDomainError,'\t',nLocationError,'\t',nGenderError,'\t',nUserError,'\t',nDeleted,'\t',nFileDuplicate,'\t',nTotal
+        print 'TIME\tHASHTAG\tMENTION\tDOMAIN\tLOC\tGENDER\tUSER\tDEL\tDUP\tFB\tTOTAL'
+        print nTimeError,'\t',nHashTagError,'\t',nMentionError,'\t',nDomainError,'\t',nLocationError,'\t',nGenderError,'\t',nUserError,'\t',nDeleted,'\t',nFileDuplicate,'\t',nFacebook,'\t',nTotal
     if r:os.remove(f)
     # Delete file when not needed any more
-    return counterDict,dateFileHash,idSet,nFileDuplicate,nTotal,nDeleted,nUserError
+    return counterDict,dateFileHash,idSet,nFileDuplicate,nTotal,nDeleted,nUserError,nFacebook
 
 #############
 def writeCounters(l,counterDict):
@@ -416,7 +447,7 @@ def initCounters(l):
         dsFileSet=data['ds']
         topicCounter=data['topics']
         languageCounter=data['languages']
-
+        fbCounter=data['fb']
         inFile.close()
     else:
         hashTagCounter=collections.defaultdict(int)
@@ -433,6 +464,7 @@ def initCounters(l):
         timeSeries=None
         posSeries=None
         negSeries=None
+        fbSeries=None
         idSet=Set()
         dsFileSet=Set()
 
@@ -440,6 +472,7 @@ def initCounters(l):
     counterDict['domains']=domainCounter
     counterDict['rawdomains']=rawDomainCounter
     counterDict['mentions']=mentionCounter
+    counterDict['fb']=fbSeries
     counterDict['time']=timeSeries
     counterDict['pos']=posSeries
     counterDict['neg']=negSeries
@@ -477,6 +510,9 @@ def main():
 
         nDeletes=0
         # Count number of tweets in stream that are deleted messages
+        
+        nFacebook=0
+        # Count number of FB posts
 
         idSet=Set()
         # This is a set that hlds all tweet ids, to ensure duplicates are removed
@@ -507,12 +543,13 @@ def main():
             if not f in dsFileSet:
                 if v:print '\tPROCESSING',f
 
-                counterDict,dateFileHash,idSet,nFileDuplicates,nFile,nFileDeletes,nUserError=processFile(l,f,dateFileHash,counterDict,idSet,cartoFile,deletionsFile) 
+                counterDict,dateFileHash,idSet,nFileDuplicates,nFile,nFileDeletes,nUserError,nFileFacebook=processFile(l,f,dateFileHash,counterDict,idSet,cartoFile,deletionsFile) 
                 # Read file and process line by line
                 # Update hash of daily files in case new ones are created
                 nDuplicates+=nFileDuplicates
                 nTotal+=nFile
                 nDeletes+=nFileDeletes
+                nFacebook+=nFileFacebook
                 dsFileSet.add(f)
             else:
                 if v:print '\tSKIPPING DUPLICATE',f 
@@ -534,6 +571,7 @@ def main():
             print 'DUPLICATES',nDuplicates
             print 'DELETED',nDeletes
             print 'TOTAL NEW',nTotal
+            print 'TOTAL FACEBOOK',nFacebook
 
         for d in dateFileHash.values():
             d.close()
