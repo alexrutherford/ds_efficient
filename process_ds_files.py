@@ -85,20 +85,21 @@ def fileStream(l):
         if len(files)>0:
         # Find all files
 #                print root,dirs,files
-            for f in files:
+            for f in files[0:5]:
                 if re.match(r'DataSift',f):
                 # Check that they are actual datasift files
 #                        print '\t',root+f
                     yield root+'/'+f
 
 #############
-def processFile(l,f,dateFileHash,counterDict,idSet,cartoFile,deletionsFile):
+def processFile(l,f,dateFileHash,counterDict,cartoFile,deletionsFile):
 #############
     '''Takes directory corresponding to language directory, file to process
     and list of existing daily files. Adds contents of file to counters
     Creates daily files that are not yet created and returns.'''
 
-    nTimeError=0
+    nTwTimeError=0
+    nFbTimeError=0
     nHashTagError=0
     nMentionError=0
     nDomainError=0
@@ -112,53 +113,56 @@ def processFile(l,f,dateFileHash,counterDict,idSet,cartoFile,deletionsFile):
     nUserError=0
     nFacebook=0
 
-    times=[]
-    positives=[]
-    negatives=[]
-
-    fbTimes=[]
-    content=[]
-    topicTimes=[]
-    topics=[]
+    twTimes=[]
+    twPositives=[]
+    twNegatives=[]
+    twContent=[]
+    twTopicTimes=[]
+    twTopics=[]
     # We need a different time counter as there can be multiple topics
+    
+    fbTimes=[]
+    fbPositives=[]
+    fbNegatives=[]
+
     fileHandle=open(f,'r')
     fileString=fileHandle.read().decode('utf-8')
     # Read file as one long string and convert to unicode
-    for tweet in fileString.split('\n'):
+    for line in fileString.split('\n'):
 
-        tweet=json.loads(tweet)
+        message=json.loads(line)
         #detectedLang=langid.classify(tweet['interaction']['content'].encode('utf-8'))
 
-        if not 'deleted' in tweet.keys() and not 'facebook' in tweet.keys():
+        if not 'deleted' in message.keys() and not 'facebook' in message.keys():
         # Catch deletions and facebook content
-        ## TODO add test of detectedLang    
-            tweetContent=tweet['interaction']['content'].encode('utf-8')
+            tweetContent=message['interaction']['content'].encode('utf-8')
             
             lang1,lang2,lang3='','','' 
             try:
-                lang1=tweet['language']['tag']
+                lang1=message['language']['tag']
             except:pass
             try:
-                lang2=tweet['twitter']['lang']
+                lang2=message['twitter']['lang']
             except:pass
             try:
                 lang3=langid.classify(tweetContent)[0]
             except:pass
-            # Count detectedlanguage from twitter and DataSift and through langid
-            counterDict['languages'][(lang1,lang2,lang3)]+=1
-
-            tweet['ungp']={}
-            # For adding our own augmentations
-
-            if not tweet['interaction']['id'] in idSet:
+            # Count detected language from twitter and DataSift and through langid
+            
+            if not message['interaction']['id'] in counterDict['tw']['ids']:
                 nTotal+=1
-                idSet.add(tweet['interaction']['id'])
+                counterDict['tw']['ids'].add(message['interaction']['id'])
+                
+                counterDict['tw']['languages'][(lang1,lang2,lang3)]+=1
 
+                message['ungp']={}
+                # For adding our own augmentations
+    
                 try:
-                    id=tweet['twitter']['id']
+                    id=message['twitter']['id']
                 except:
                     try:
-                        id=tweet['twitter']['retweeted']['id']
+                        id=message['twitter']['retweeted']['id']
                     except:
                         pass
                 ###############################################   
@@ -168,85 +172,85 @@ def processFile(l,f,dateFileHash,counterDict,idSet,cartoFile,deletionsFile):
                 # If chosenCountry has been set, test to see if
                 # tweet geolocated there
                 try:
-                    loc=geo.geoLocate(tweet['twitter']['user']['location'])
+                    loc=geo.geoLocate(message['twitter']['user']['location'])
                     if len(loc)>0:
                         if loc[0][3]==chosenCountry:inCountry=True
                         # We only want to count tweets in our chosen country if there is one
 
-                        tweet['ungp']['geolocation']=loc[0][3]
+                        message['ungp']['geolocation']=loc[0][3]
                 except:
                     nLocationError+=1
                 ###############################################   
                 '''Topics by country'''
                 try:
-                    tweetTopics=tweet['interaction']['tag_tree']['topic']
+                    tweetTopics=message['interaction']['tag_tree']['topic']
                     for t in tweetTopics:
-                        if not t in counterDict['topicCountry'].keys():
-                            counterDict['topicCountry'][t]=collections.defaultdict(int)
-                        counterDict['topicCountry'][t][loc[0][3]]+=1
+                        if not t in counterDict['tw']['topicCountry'].keys():
+                            counterDict['tw']['topicCountry'][t]=collections.defaultdict(int)
+                        counterDict['tw']['topicCountry'][t][loc[0][3]]+=1
                 except:
 #                    print traceback.print_exc()
                     pass
                 ###############################################   
                 try:
-                    tweetTime=dateutil.parser.parse(tweet['interaction']['created_at'])
-                    if inCountry:times.append(tweetTime)
+                    tweetTime=dateutil.parser.parse(message['interaction']['created_at'])
+                    if inCountry:twTimes.append(tweetTime)
                 except:
-                    nTimeError+=1
+                    nTwTimeError+=1
                     tweetTime=None
                 ###############################################   
                 '''Carto'''
                 try:
-                    isoTime=datetime.datetime.strptime(tweet['interaction']['created_at'],'%a, %d %b %Y %H:%M:%S +0000')
-                    cartoFile.writerow([tweet['twitter']['id'],str(tweet['twitter']['geo']['latitude']),str(tweet['twitter']['geo']['longitude']),isoTime])
+                    isoTime=datetime.datetime.strptime(message['interaction']['created_at'],'%a, %d %b %Y %H:%M:%S +0000')
+                    cartoFile.writerow([message['twitter']['id'],str(message['twitter']['geo']['latitude']),str(message['twitter']['geo']['longitude']),isoTime])
                 except:
                     nGeoError+=1
                 ####################################   
                 '''Hashtags'''
                 try:
                     if inCountry:
-                        for h in tweet['interaction']['hashtags']:
-                            counterDict['hashtags'][h.lower()]+=1   
+                        for h in message['interaction']['hashtags']:
+                            counterDict['tw']['hashtags'][h.lower()]+=1   
                 except:
                     nHashTagError+=1
                 ###############################################   
                 '''Mentions'''
                 try:
                     if inCountry:
-                        for m in tweet['twitter']['mentions']:
-                            counterDict['mentions'][m.lower()]+=1 
+                        for m in message['twitter']['mentions']:
+                            counterDict['tw']['mentions'][m.lower()]+=1 
                 except:
                     nMentionError+=1
                 ###############################################   
                 '''Domains'''
                 try:
                     if inCountry:
-                        for d in tweet['links']['domain']:
-                            counterDict['domains'][d]+=1 
+                        for d in message['links']['domain']:
+                            counterDict['tw']['domains'][d]+=1 
                 except:
                     nDomainError+=1
                 ###############################################   
                 '''Users'''
                 twitterUser=None
                 try:
-                    twitterUser=tweet['twitter']['retweeted']['user']['screen_name']
+                    twitterUser=message['twitter']['retweeted']['user']['screen_name']
                 except:
                     try:
-                        twitterUser=tweet['twitter']['user']['screen_name']
+                        twitterUser=message['twitter']['user']['screen_name']
                     except:
                         pass
                 if twitterUser: 
                     if inCountry:
-                        counterDict['users'][twitterUser]+=1 
+                        counterDict['tw']['users'][twitterUser]+=1 
                 else:
                     nUserError+=1
                 
                 ###############################################   
                 '''Gender'''
                 try:
-                    g=genderClassifier.gender(tweet['twitter']['user']['name'])
+                    g=genderClassifier.gender(message['twitter']['user']['name'])
                     g=g.values()[0]['gender']
-                    tweet['ungp']['gender']=g
+                    message['ungp']['gender']=g
                 except:
                     nGenderError+=1
                 ###############################################   
@@ -255,35 +259,36 @@ def processFile(l,f,dateFileHash,counterDict,idSet,cartoFile,deletionsFile):
                 # Only add sentiment if time successfully extracted
                 # else cannot make dataframe 
                     if re.search(posRe,tweetContent):
-                        positives.append(1)
+                        twPositives.append(1)
                     else:
-                        positives.append(0)
+                        twPositives.append(0)
                     if re.search(negRe,tweetContent):
-                        negatives.append(1)
+                        twNegatives.append(1)
                     else:
-                        negatives.append(0)
+                        twNegatives.append(0)
                 ####################################   
                 '''Topics'''
                 try:
-                    tweetTopics=tweet['interaction']['tag_tree']['topic']
+                    tweetTopics=message['interaction']['tag_tree']['topic']
                     for t in tweetTopics:
-                        content.append(tweetContent)
-                        topicTimes.append(tweetTime)
-                        topics.append(t)
+                        twContent.append(tweetContent)
+                        twTopicTimes.append(tweetTime)
+                        twTopics.append(t)
                         # Need this to count over topics
                         # TODO Can this be improved
                 except:
+#                    print traceback.print_exc()
                     nTopicError+=1
                 ####################################   
                 '''N-grams'''
                 if tweetTime and inCountry:
                     toks=tweetContent.lower().split(' ')
                     for w in [t for t in toks if not t in stopWords]:
-                        counterDict['unigrams'][w]+=1
+                        counterDict['tw']['unigrams'][w]+=1
                     for b in bigrams(toks):
-                        counterDict['bigrams'][b]+=1
+                        counterDict['tw']['bigrams'][b]+=1
                     for t in trigrams(toks):
-                        counterDict['trigrams'][t]+=1
+                        counterDict['tw']['trigrams'][t]+=1
 
                 ###############################################   
                 '''Write tweet to file'''
@@ -296,34 +301,105 @@ def processFile(l,f,dateFileHash,counterDict,idSet,cartoFile,deletionsFile):
                         dateFileHash[tweetFileName]=open(tweetFileName,'w')
                     # Add to hash
                     if inCountry:
-                        dateFileHash[tweetFileName].write(json.dumps(tweet).encode('utf-8')+'\n')
+                        dateFileHash[tweetFileName].write(json.dumps(message).encode('utf-8')+'\n')
                     #Write tweet to daily file
             else:
                 nFileDuplicate+=1
         ###################################
-        elif 'facebook' in tweet.keys():
+        elif 'facebook' in message.keys():
         ###################################
         # For now ignore FB content
-            if not tweet['interaction']['id'] in idSet:
+            fbTime=None
+            
+            fbContent=message['interaction']['content'].encode('utf-8')
+            
+            if not message['interaction']['id'] in counterDict['fb']['ids']:
                 nTotal+=1
-                idSet.add(tweet['interaction']['id'])
-                 
                 nFacebook+=1
-                tweetFileName=None
-                fbTime=dateutil.parser.parse(tweet['interaction']['created_at'])
-                tweetFileName=datetime.datetime(fbTime.year,fbTime.month,fbTime.day)
-                if tweetFileName:
-                    fbTimes.append(tweetFileName)
+                
+                counterDict['fb']['ids'].add(message['interaction']['id'])
+                
+                message['ungp']={}
+                # For adding our own augmentations
+                
+                ###############################################   
+                '''Geolocation'''
+                inCountry=False
+                if not chosenCountry:inCountry=True
+                # If chosenCountry has been set, test to see if
+                # TODO message geolocated there
+                
+                ###############################################   
+                '''Topics by country'''
+                '''TODO'''
+                try:
+                    fbTime=dateutil.parser.parse(message['interaction']['created_at'])
+                    if inCountry:fbTimes.append(fbTime)
+                except:
+                    nFbTimeError+=1
+                    fbTime=None
+                
+                ###############################################   
+                '''Carto'''
+                '''TODO'''
+                ###############################################   
+                '''Domains'''
+                '''TODO'''
+                ###############################################   
+                '''Users'''
+                '''TODO'''
+                ###############################################   
+                '''Gender'''
+                '''TODO'''
+                ###############################################   
+                '''Sentiment'''
+                '''TODO'''
+                if tweetTime and inCountry:
+                # Only add sentiment if time successfully extracted
+                # else cannot make dataframe 
+                    if re.search(posRe,fbContent):
+                        fbPositives.append(1)
+                    else:
+                        fbPositives.append(0)
+                    if re.search(negRe,fbContent):
+                        fbNegatives.append(1)
+                    else:
+                        fbNegatives.append(0)
+                ###############################################   
+                '''Topics'''
+                '''TODO'''
+                ###############################################   
+                '''Sentiment'''
+                '''TODO'''
+                ###############################################   
+                '''N-grams'''
+                '''TODO'''
+                ###############################################   
+                '''Write FB message to file'''
+                if not fbTime==None:
+                # If time is missing, cannot write to daily file
+                    tweetFileName=dateFileName(tweetTime,l)
+                    # This is the file where message should be put
+                                
+                    if inCountry and not tweetFileName in dateFileHash.keys():
+                        dateFileHash[tweetFileName]=open(tweetFileName,'w')
+                    # Add to hash
+                    if inCountry:
+                        dateFileHash[tweetFileName].write(json.dumps(message).encode('utf-8')+'\n')
+                    #Write tweet to daily file
+            else:
+                nFileDuplicate+=1
+
         ###################################
-        elif 'deleted' in tweet.keys():
+        elif 'deleted' in message.keys():
         ###################################
             try:
-                deletionsFile.write(str(tweet['twitter']['id'])+'\n')
+                deletionsFile.write(str(message['twitter']['id'])+'\n')
             except:
-                deletionsFile.write(str(tweet['twitter']['retweeted']['id'])+'\n')
+                deletionsFile.write(str(message['twitter']['retweeted']['id'])+'\n')
             nDeleted+=1
         else:
-            print 'WEIRD',tweet.keys()
+            print 'WEIRD',message.keys()
             time.sleep(10000)
     # This tweet has been deleted
     # process_deletions.py will deal with these
@@ -333,50 +409,72 @@ def processFile(l,f,dateFileHash,counterDict,idSet,cartoFile,deletionsFile):
     fileHandle.close()
 
     '''Now aggregate'''  
+    '''tw'''
     '''topics'''
-    tempTopicDf=pd.DataFrame(data={'topics':topics,'content':content},index=topicTimes)
+    tempTopicDf=pd.DataFrame(data={'topics':twTopics,'content':twContent},index=twTopicTimes)
     # Make a dataframe with contents of this file
-    if len(topics)>0:
+    if len(twTopics)>0:
     # Only aggregate topics if some tweets were tagged with topics
-        topicGroups=tempTopicDf.groupby(topics)
+        topicGroups=tempTopicDf.groupby(twTopics)
         # Group dataframe by topics
 
         for topic,topicDf in topicGroups:
-            if not topic in counterDict['topics'].keys():
-                counterDict['topics'][topic]=topicDf.resample('D',how='count')['content']
+            if not topic in counterDict['tw']['topics'].keys():
+                counterDict['tw']['topics'][topic]=topicDf.resample('D',how='count')['content']
                 # First time through, add downsampled series
             else:
-                counterDict['topics'][topic]=counterDict['topics'][topic].add(topicDf.resample('D',how='count')['content'],fill_value=0)
+                counterDict['tw']['topics'][topic]=counterDict['tw']['topics'][topic].add(topicDf.resample('D',how='count')['content'],fill_value=0)
                 # Then add series from each new file to running total
                 # If time ranges don't overlap explicitly add a zero
                 totalDf=pd.concat([tdf for t,tdf in topicGroups])
     '''sentiments'''
-    tempDf=pd.DataFrame(data={'time':times,'pos':positives,'neg':negatives},index=times)
+    tempDf=pd.DataFrame(data={'time':twTimes,'pos':twPositives,'neg':twNegatives},index=twTimes)
     # Make a dataframe with contents of this file
     # TODO count over something better
 
-    if not type(counterDict['time'])==pd.Series:
-        counterDict['time']=tempDf.resample('D',how='count')['time']
-        counterDict['pos']=tempDf.resample('D',how='sum')['pos']
-        counterDict['neg']=tempDf.resample('D',how='sum')['neg']
+    if not type(counterDict['tw']['time'])==pd.Series:
+        counterDict['tw']['time']=tempDf.resample('D',how='count')['time']
+        counterDict['tw']['pos']=tempDf.resample('D',how='sum')['pos']
+        counterDict['tw']['neg']=tempDf.resample('D',how='sum')['neg']
         # First time through, add downsampled series
     else:
-        counterDict['time']=counterDict['time'].add(tempDf.resample('D',how='count')['time'],fill_value=0)
-        counterDict['pos']=counterDict['pos'].add(tempDf.resample('D',how='sum')['pos'],fill_value=0)
-        counterDict['neg']=counterDict['neg'].add(tempDf.resample('D',how='sum')['neg'],fill_value=0)
+        counterDict['tw']['time']=counterDict['tw']['time'].add(tempDf.resample('D',how='count')['time'],fill_value=0)
+        counterDict['tw']['pos']=counterDict['tw']['pos'].add(tempDf.resample('D',how='sum')['pos'],fill_value=0)
+        counterDict['tw']['neg']=counterDict['tw']['neg'].add(tempDf.resample('D',how='sum')['neg'],fill_value=0)
+    
     ''' facebook'''
+    '''topics'''
+    '''sentiments'''
+    print 'times,pos,neg'
+    print len(fbTimes),len(fbPositives),len(fbNegatives)
+    tempDf=pd.DataFrame(data={'time':fbTimes,'pos':fbPositives,'neg':fbNegatives},index=fbTimes)
+    # Make a dataframe with contents of this file
+    # TODO count over something better
+
+    if not type(counterDict['fb']['time'])==pd.Series:
+        counterDict['fb']['time']=tempDf.resample('D',how='count')['time']
+        counterDict['fb']['pos']=tempDf.resample('D',how='sum')['pos']
+        counterDict['fb']['neg']=tempDf.resample('D',how='sum')['neg']
+        # First time through, add downsampled series
+    else:
+        counterDict['fb']['time']=counterDict['fb']['time'].add(tempDf.resample('D',how='count')['time'],fill_value=0)
+        counterDict['fb']['pos']=counterDict['fb']['pos'].add(tempDf.resample('D',how='sum')['pos'],fill_value=0)
+        counterDict['fb']['neg']=counterDict['fb']['neg'].add(tempDf.resample('D',how='sum')['neg'],fill_value=0)
+
+    '''volume over time'''
     tempFbDf=pd.DataFrame(data={'time':fbTimes},index=fbTimes)
 
-    if not type(counterDict['fb'])==pd.Series:
-        counterDict['fb']=tempFbDf.resample('D',how='count')['time']
+    if not type(counterDict['fb']['time'])==pd.Series:
+        counterDict['fb']['time']=tempFbDf.resample('D',how='count')['time']
     else:
-        counterDict['fb']=counterDict['fb'].add(tempFbDf.resample('D',how='count')['time'],fill_value=0)
+        counterDict['fb']['time']=counterDict['fb']['time'].add(tempFbDf.resample('D',how='count')['time'],fill_value=0)
+   ####################### 
     if v:
-        print 'TIME\tHASHTAG\tMENTION\tDOMAIN\tLOC\tGENDER\tUSER\tDEL\tDUP\tFB\tTOTAL'
-        print nTimeError,'\t',nHashTagError,'\t',nMentionError,'\t',nDomainError,'\t',nLocationError,'\t',nGenderError,'\t',nUserError,'\t',nDeleted,'\t',nFileDuplicate,'\t',nFacebook,'\t',nTotal
+        print 'TIME (tw,fb)\tHASHTAG\tMENTION\tDOMAIN\tLOC\tGENDER\tUSER\tDEL\tDUP\tFB\tTOTAL'
+        print nTwTimeError,nFbTimeError,'\t',nHashTagError,'\t',nMentionError,'\t',nDomainError,'\t',nLocationError,'\t',nGenderError,'\t',nUserError,'\t',nDeleted,'\t',nFileDuplicate,'\t',nFacebook,'\t',nTotal
     if r:os.remove(f)
     # Delete file when not needed any more
-    return counterDict,dateFileHash,idSet,nFileDuplicate,nTotal,nDeleted,nUserError,nFacebook
+    return counterDict,dateFileHash,nFileDuplicate,nTotal,nDeleted,nUserError,nFacebook
 
 #############
 def writeCounters(l,counterDict):
@@ -420,10 +518,11 @@ def initDeletionsFile(l):
 def initCounters(l):
 #############
     '''
-    Returns a dictionary of counters, a set of all tweet IDs 
+    Returns a dictionary dictionaries. Keys are sources and values
+    are counters, a set of all tweet IDs 
     processed and a set of DataSift files already processed
     '''
-    counterDict={}
+    counterDict={'fb':{},'tw':{}}
     
     if os.path.isfile(l+counterFileName):
         print '\tFOUND PICKLE FILE',l+counterFileName
@@ -431,62 +530,102 @@ def initCounters(l):
         
         data=pickle.load(inFile)
         
-        topicCountryCounter=data['topicCountry']        
-        userCounter=data['users']
-        mentionCounter=data['mentions']
-        unigramCounter=data['unigrams']
-        bigramCounter=data['bigrams']
-        trigramCounter=data['trigrams']
-        hashTagCounter=data['hashtags']
-        domainCounter=data['domains']
-        rawDomainCounter=data['rawdomains']
-        timeSeries=data['time']
-        posSeries=data['pos']
-        negSeries=data['neg']
-        idSet=data['ids']
+        twTopicCountryCounter=data['tw']['topicCountry']        
+        twUserCounter=data['tw']['users']
+        twMentionCounter=data['tw']['mentions']
+        twUnigramCounter=data['tw']['unigrams']
+        twBigramCounter=data['tw']['bigrams']
+        twTrigramCounter=data['tw']['trigrams']
+        twHashTagCounter=data['tw']['hashtags']
+        twDomainCounter=data['tw']['domains']
+        twRawDomainCounter=data['tw']['rawdomains']
+        twTimeSeries=data['tw']['time']
+        twPosSeries=data['tw']['pos']
+        twNegSeries=data['tw']['neg']
+        twIdSet=data['tw']['ids']
+        twTopicCounter=data['tw']['topics']
+        twLanguageCounter=data['tw']['languages']
+        
+        fbTimeSeries=data['fb']['time']
+        fbPosSeries=data['fb']['pos']
+        fbNegSeries=data['fb']['neg']
+        fbIdSet=data['fb']['ids']
+        fbTopicCounter=data['fb']['topics']
+        fbUnigramCounter=data['fb']['unigrams']
+        fbBigramCounter=data['fb']['bigrams']
+        fbTrigramCounter=data['fb']['trigrams']
+        fbUserCounter=data['fb']['users']
+        fbLanguageCounter=data['fb']['languages']
+        fbDomainCounter=data['fb']['domains']
+
         dsFileSet=data['ds']
-        topicCounter=data['topics']
-        languageCounter=data['languages']
-        fbCounter=data['fb']
+
         inFile.close()
+        data=None
     else:
-        hashTagCounter=collections.defaultdict(int)
-        domainCounter=collections.defaultdict(int)
-        rawDomainCounter=collections.defaultdict(int)
-        mentionCounter=collections.defaultdict(int)
-        unigramCounter=collections.defaultdict(int)
-        bigramCounter=collections.defaultdict(int)
-        trigramCounter=collections.defaultdict(int)
-        userCounter=collections.defaultdict(int)
-        languageCounter=collections.defaultdict(int)
-        topicCounter={}
-        topicCountryCounter={}
-        timeSeries=None
-        posSeries=None
-        negSeries=None
-        fbSeries=None
-        idSet=Set()
+        
+        fbTimeSeries=None
+        fbPosSeries=None
+        fbNegSeries=None
+        fbIdSet=set([])
+        fbTopicCounter={}
+        fbUnigramCounter=collections.defaultdict(int)
+        fbBigramCounter=collections.defaultdict(int)
+        fbTrigramCounter=collections.defaultdict(int)
+        fbUserCounter=collections.defaultdict(int)
+        fbLanguageCounter=collections.defaultdict(int)
+        fbDomainCounter=collections.defaultdict(int)
+
+        twHashTagCounter=collections.defaultdict(int)
+        twDomainCounter=collections.defaultdict(int)
+        twRawDomainCounter=collections.defaultdict(int)
+        twMentionCounter=collections.defaultdict(int)
+        twUnigramCounter=collections.defaultdict(int)
+        twBigramCounter=collections.defaultdict(int)
+        twTrigramCounter=collections.defaultdict(int)
+        twUserCounter=collections.defaultdict(int)
+        twLanguageCounter=collections.defaultdict(int)
+        twTopicCounter={}
+        twTopicCountryCounter={}
+        twTimeSeries=None
+        twPosSeries=None
+        twNegSeries=None
+        twSeries=None
+        twIdSet=set([])
+        
         dsFileSet=Set()
 
-    counterDict['hashtags']=hashTagCounter
-    counterDict['domains']=domainCounter
-    counterDict['rawdomains']=rawDomainCounter
-    counterDict['mentions']=mentionCounter
-    counterDict['fb']=fbSeries
-    counterDict['time']=timeSeries
-    counterDict['pos']=posSeries
-    counterDict['neg']=negSeries
-    counterDict['ids']=idSet
-    counterDict['ds']=dsFileSet
-    counterDict['topics']=topicCounter
-    counterDict['unigrams']=unigramCounter
-    counterDict['bigrams']=bigramCounter
-    counterDict['trigrams']=trigramCounter
-    counterDict['users']=userCounter
-    counterDict['topicCountry']=topicCountryCounter
-    counterDict['languages']=languageCounter
+    counterDict['tw']['hashtags']=twHashTagCounter
+    counterDict['tw']['domains']=twDomainCounter
+    counterDict['tw']['rawdomains']=twRawDomainCounter
+    counterDict['tw']['mentions']=twMentionCounter
+    counterDict['tw']['time']=twTimeSeries
+    counterDict['tw']['pos']=twPosSeries
+    counterDict['tw']['neg']=twNegSeries
+    counterDict['tw']['ids']=twIdSet
+    counterDict['tw']['topics']=twTopicCounter
+    counterDict['tw']['unigrams']=twUnigramCounter
+    counterDict['tw']['bigrams']=twBigramCounter
+    counterDict['tw']['trigrams']=twTrigramCounter
+    counterDict['tw']['users']=twUserCounter
+    counterDict['tw']['topicCountry']=twTopicCountryCounter
+    counterDict['tw']['languages']=twLanguageCounter
 
-    return counterDict,idSet,dsFileSet
+    counterDict['fb']['time']=fbTimeSeries
+    counterDict['fb']['pos']=fbPosSeries
+    counterDict['fb']['neg']=fbNegSeries
+    counterDict['fb']['ids']=fbIdSet
+    counterDict['fb']['topics']=fbTopicCounter
+    counterDict['fb']['unigrams']=fbUnigramCounter
+    counterDict['fb']['bigrams']=fbBigramCounter
+    counterDict['fb']['trigrams']=fbTrigramCounter
+    counterDict['fb']['users']=fbUserCounter
+    counterDict['fb']['languages']=fbLanguageCounter
+    counterDict['fb']['domains']=fbDomainCounter
+
+    counterDict['ds']=dsFileSet
+    
+    return counterDict,dsFileSet
 #############
 def main():
 #############
@@ -522,7 +661,7 @@ def main():
         # This set holds all the DataSift file names
         # Thus duplicate files are skipped over
         
-        counterDict,idSet,dsFileSet=initCounters(l)
+        counterDict,dsFileSet=initCounters(l)
         # Look for dumpfile to load in counters, if not there create empty ones
    
         deletionsFile=initDeletionsFile(l)
@@ -543,7 +682,7 @@ def main():
             if not f in dsFileSet:
                 if v:print '\tPROCESSING',f
 
-                counterDict,dateFileHash,idSet,nFileDuplicates,nFile,nFileDeletes,nUserError,nFileFacebook=processFile(l,f,dateFileHash,counterDict,idSet,cartoFile,deletionsFile) 
+                counterDict,dateFileHash,nFileDuplicates,nFile,nFileDeletes,nUserError,nFileFacebook=processFile(l,f,dateFileHash,counterDict,cartoFile,deletionsFile) 
                 # Read file and process line by line
                 # Update hash of daily files in case new ones are created
                 nDuplicates+=nFileDuplicates
@@ -554,7 +693,8 @@ def main():
             else:
                 if v:print '\tSKIPPING DUPLICATE',f 
                 nSkippedFiles+=1
-        counterDict['ids']=idSet
+#        counterDict['fb']['ids']=fbIdSet
+#        counterDict['tw']['ids']=twIdSet
         counterDict['ds']=dsFileSet
 
         writeCounters(l,counterDict)
@@ -564,7 +704,7 @@ def main():
 
         if v:
             print 'AT END', 
-            printTop(counterDict['hashtags'],10)
+            printTop(counterDict['tw']['hashtags'],10)
             print '----------------------------------------------'
         if True:
             print 'SKIPPED',nSkippedFiles
