@@ -11,7 +11,7 @@ Considers tweet IDs in ```deletions.csv```, removes from daily files and adjusts
 3. ```python get_top_tweets.py```
 Looks through daily files produced as output from ```process_ds_files.py``` and counts tweets from last n days. Writes out IDs to file for embedding.
 
-4. ```query/_dump.ipynb```
+4. ```query_dump.ipynb```
 Reads in serialised data from ```counters.dat``` and produces plots interatively
 
 5. ```make_plots.py```
