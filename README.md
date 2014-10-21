@@ -1,9 +1,9 @@
-Set of python scripts to parse large DataSift streaming corpora
+Set of python scripts to parse large DataSift streaming corpora including several sources
 
-Run in following order, with data by language in ```../data/<language>/``` (set in variable ```dataDirectory```)
+Run in following order, with data by language in ```../data/<language>/``` (set in variable ```dataDirectory```, can be set at runtime with ```-d <dir>```argument)
 
 1. ```python process_ds_files.py```
-Cycles through all files from DataSift ```DataSift*json``` and places tweets in daily files. Also counts mentions, hashtags and other attributes. Serialises data in ```counters.dat```. Deleted tweets that appear in the stream written to ```deletions.csv```.
+Cycles through all files from DataSift ```DataSift*json``` and places messages in daily files. Also counts mentions, hashtags and other attributes. Serialises data in ```counters.dat```. Deleted tweets that appear in the stream written to ```deletions.csv```.
 
 2. ```python process_deletions.py```
 Considers tweet IDs in ```deletions.csv```, removes from daily files and adjusts counters.
@@ -23,3 +23,4 @@ Reads in serialised data from ```counters.dat``` and produces plots and data fil
 * UNGP geolocation
 * UNGP gender
 * NLTK
+* [Langid](https://github.com/saffsd/langid.py)
