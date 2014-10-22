@@ -51,7 +51,7 @@ def writeTopTweets(tweetCounter,tweetTopicCounter,topTopicFollowers,topFollowers
         if not k=='None':
             sortedTweets=sorted(v.iteritems(),key=lambda x:x[1])
             sortedTweets.reverse()
-            fileName='data'+topicHash[k]+'.top.retweet'
+            fileName='data/'+topicHash[k]+'.top.retweet'
             outFile=csv.writer(open(fileName,'w'),delimiter='\t')
             print k
             for t in sortedTweets[0:10]:
