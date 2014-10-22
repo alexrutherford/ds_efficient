@@ -128,6 +128,7 @@ def processFile(l,f,dateFileHash,counterDict,cartoFile,deletionsFile,dcFile):
     nFacebook=0
     nDcError=0
     nTopicError=0
+    fbContentError=0
 
     twTimes=[]
     twPositives=[]
@@ -150,6 +151,8 @@ def processFile(l,f,dateFileHash,counterDict,cartoFile,deletionsFile,dcFile):
 
         chosenTopic=None
 
+        ###########
+        '''choose a topic here '''
         try:
             messageTopics=message['interaction']['tag_tree']['topic'].items()
             # This is currently over-engineered to Brazil case
@@ -160,8 +163,8 @@ def processFile(l,f,dateFileHash,counterDict,cartoFile,deletionsFile,dcFile):
                 chosenTopic=random.choice(messageTopics)
                 chosenTopic=chosenTopic[0]+'_'+chosenTopic[1][0]
         except:
-            print traceback.print_exc()
             nTopicError+=1
+        ##############
 
         if not 'deleted' in message.keys() and not 'facebook' in message.keys():
         # Catch deletions and facebook content
@@ -231,17 +234,14 @@ def processFile(l,f,dateFileHash,counterDict,cartoFile,deletionsFile,dcFile):
                 ###############################################   
                 '''Carto'''
                 try:
-#                    isoTime=datetime.datetime.strptime(message['interaction']['created_at'],'%a, %d %b %Y %H:%M:%S +0000')
                     coords=(message['twitter']['geo']['latitude'],message['twitter']['geo']['longitude'])
                     isoTime=getISODate(message['interaction']['created_at'])
                     cartoFile.writerow([message['twitter']['id'],str(coords[0]),str(coords[1]),isoTime])
-                    '''Add in country snapping for DC.js now'''
                 except:
                     nGeoError+=1
                 ####################################   
                 '''DC.js'''
                 try:
-                    #TODO get topic
                     coords=(message['twitter']['geo']['latitude'],message['twitter']['geo']['longitude'])
 #                    print message['twitter']['geo']['latitude'],tweetTime,
                     isoTime=getISODate(message['interaction']['created_at'])
@@ -356,8 +356,12 @@ def processFile(l,f,dateFileHash,counterDict,cartoFile,deletionsFile,dcFile):
         ###################################
             fbTime=None
             
-            fbContent=message['interaction']['content'].encode('utf-8')
-            
+            try:
+                fbContent=message['interaction']['content'].encode('utf-8')
+            except:
+#                print 'CONTENT ERROR',message.keys(),message['interaction'].keys()
+                fbContentError+1
+                           
             if not message['interaction']['id'] in counterDict['fb']['ids']:
                 nTotal+=1
                 nFacebook+=1
@@ -376,29 +380,55 @@ def processFile(l,f,dateFileHash,counterDict,cartoFile,deletionsFile,dcFile):
                 
                 ###############################################   
                 '''Topics by country'''
-                '''TODO'''
+                try:
+                    fbTopics=message['interaction']['tag_tree']['topic']
+                    for t in fbTopics:
+                        if not t in counterDict['fb']['topicCountry'].keys():
+                            counterDict['fb']['topicCountry'][t]=collections.defaultdict(int)
+                        counterDict['fb']['topicCountry'][t][loc[0][3]]+=1
+                except:
+                    pass
+                ###############################################   
                 try:
                     fbTime=dateutil.parser.parse(message['interaction']['created_at'])
                     if inCountry:fbTimes.append(fbTime)
                 except:
                     nFbTimeError+=1
                     fbTime=None
-                
                 ###############################################   
                 '''Carto'''
-                '''TODO'''
+                try:
+                    coords=(message['facebook']['geo']['latitude'],message['facebook']['geo']['longitude'])
+                    isoTime=getISODate(message['interaction']['created_at'])
+                    cartoFile.writerow([message['interaction']['id'],str(coords[0]),str(coords[1]),isoTime])
+                except:
+                    nGeoError+=1
                 ###############################################   
                 '''Domains'''
-                '''TODO'''
+                try:
+                    if inCountry:
+                        for d in message['links']['domain']:
+                            counterDict['fb']['domains']+=1
+                except:
+                    nDomainError+=1
                 ###############################################   
                 '''Users'''
-                '''TODO'''
+                fbUser=None
+                try:
+                    fbUser=message['facebook']['interaction']['author']['hash_id']
+                except:
+                    nUserError+=1
+                if fbUser and inCountry:
+                    counterDict['fb']['user'][fbUser]+=1
                 ###############################################   
                 '''Gender'''
-                '''TODO'''
+                try:
+                    g=genderClassifier.gender(message['facebook']['demographic']['gender'])
+                    message['ungp']['gender']=g
+                except:
+                    nGenderError+=1
                 ###############################################   
                 '''Sentiment'''
-                '''TODO'''
                 if fbTime and inCountry:
                 # Only add sentiment if time successfully extracted
                 # else cannot make dataframe 
@@ -412,13 +442,27 @@ def processFile(l,f,dateFileHash,counterDict,cartoFile,deletionsFile,dcFile):
                         fbNegatives.append(0)
                 ###############################################   
                 '''Topics'''
-                '''TODO'''
-                ###############################################   
-                '''Sentiment'''
-                '''TODO'''
+                try:
+                    fbTopics=message['interaction']['tag_tree']['topic']
+                    for t in fbTopics:
+                        fbContent.append(fbContent)
+                        fbTopicTimes.append(fbTime)
+                        fbTopics.append(t)
+                        # Need this to count over topics
+                        # TODO Can this be improved
+                except:
+#                    print traceback.print_exc()
+                    nTopicError+=1
                 ###############################################   
                 '''N-grams'''
-                '''TODO'''
+                if fbTime and inCountry:
+                    toks=fbContent.lower().split(' ')
+                    for w in [t for t in toks if not t in stopWords]:
+                        counterDict['fb']['unigrams'][w]+=1
+                    for b in bigrams(toks):
+                        counterDict['fb']['bigrams'][b]+=1
+                    for t in trigrams(toks):
+                        counterDict['fb']['trigrams'][t]+=1
                 ###############################################   
                 '''Write FB message to file'''
                 if not fbTime==None:
@@ -434,7 +478,6 @@ def processFile(l,f,dateFileHash,counterDict,cartoFile,deletionsFile,dcFile):
                     #Write tweet to daily file
             else:
                 nFileDuplicate+=1
-
         ###################################
         elif 'deleted' in message.keys():
         ###################################
@@ -610,13 +653,18 @@ def initCounters(l):
     else:
         print 'DIDNT FIND OLD PICKLE FILE'
         print 'ATTEMPTING TO CLEAN OLD DAILY FILES'
+        print l
+        print cartoFileName
         time.sleep(3)
 
         for f in glob.glob(l+dateFileFormat):
             os.remove(f)
        
-        os.remove(l+cartoFileName)
-        
+        try:
+            os.remove(l+cartoFileName)
+        except:
+            pass
+
         fbTimeSeries=None
         fbPosSeries=None
         fbNegSeries=None
@@ -689,7 +737,7 @@ def main():
     # e.g. if dataDirectory is '../data/', language directories might be
     # '../data/english/','../data/french/'
 
-    for l in languageDirectories[0:1]:
+    for l in languageDirectories[3:]:
         print 'LANGUAGE',l
         nDuplicates=0
         # Reset this for each language

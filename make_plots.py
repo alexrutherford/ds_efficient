@@ -13,7 +13,7 @@ import mpld3
 import seaborn as sns
 import matplotlib.pyplot as plt
 
-import sys
+import sys,os
 sys.path.append('/mnt/home/ubuntu/projects/tools/')
 
 from gp_colours import *
@@ -25,13 +25,26 @@ import itertools
 plotColours=['#1B6E44','#6D1431','#FF5500','#5D6263','#009D97','#c84699','#71be45','#3F8CBC','#FFC200']
 plotCycle=itertools.cycle(plotColours)
 
-inFile=open('../data/baseline3/counters.dat','r')
+inFileName='../data_test/english/counters.dat'
+
+if '-i' in sys.argv:
+    # Set intput file
+    i=(sys.argv).index('-l')
+    inFileName=sys.argv[i+1]
+    print 'SET INPUT FILE',inFileName
+    time.sleep(1)
+
+inFile=open(inFileName,'r')
 data=pickle.load(inFile)
+inDirectory=('/'.join(inFileName.split('/')[0:-1]))+'/'
+os.mkdir(inDirectory+'plots')
+os.mkdir(inDirectory+'data')
+# Where to place plots/data
 
 chosenLanguage='english'
 
 if '-l' in sys.argv:
-    # Flag for filtering by country
+    # Flag for filtering by language
     i=(sys.argv).index('-l')
     chosenLanguage=sys.argv[i+1]
     print 'ADDED LANG FLAG',chosenLanguage
@@ -78,7 +91,7 @@ def main():
     ax.set_yticks([i+0.5 for i in range(len(topicSums))])
     ax.set_xlabel('Number of Tweets')
     ax.set_yticklabels([v[0] for v in topicSums]);
-    plt.savefig('plots/hashtags_'+chosenLanguage+'.png', bbox_inches='tight',dpi=200)
+    plt.savefig(inDirectory+'plots/hashtags_'+chosenLanguage+'.png', bbox_inches='tight',dpi=200)
     # Get sum of topics, use this to plot in some kind of order
 
     #####################
@@ -92,8 +105,8 @@ def main():
     ax=data['time'].plot(legend=False,figsize=(14,8),style=gpBlue,lw=7)
     ax.grid(color='lightgray', alpha=0.4)
     ax.axis(ymin=0)
-    plt.savefig('plots/PLOT_'+chosenLanguage+'_Total.png',dpi=60)
-    mpld3.save_html(totalSeriesFig, 'plots/PLOT_'+chosenLanguage+'_Total.php', figid=chosenLanguage+"TotalSeriesFig")
+    plt.savefig(inDirectory+'plots/PLOT_'+chosenLanguage+'_Total.png',dpi=60)
+    mpld3.save_html(totalSeriesFig, inDirectory+'plots/PLOT_'+chosenLanguage+'_Total.php', figid=chosenLanguage+"TotalSeriesFig")
 
     #####################
     # Plot all topics together
@@ -110,7 +123,7 @@ def main():
             ax.grid(color='lightgray', alpha=0.7)
             xlabels = ax.get_xticklabels()
             ylabels = ax.get_yticklabels()
-            mpld3.save_html(allSeriesFig, 'plots/PLOT_'+chosenLanguage+'_All.php', figid=chosenLanguage+"AllSeriesFig")
+            mpld3.save_html(allSeriesFig, inDirectory+'plots/PLOT_'+chosenLanguage+'_All.php', figid=chosenLanguage+"AllSeriesFig")
 
     ######################
 # Plot individual topics
@@ -125,7 +138,7 @@ def main():
             ax=b.plot(label=a,legend=False,figsize=(20,12),style=col,lw=7)
             xlabels = ax.get_xticklabels()
             ylabels = ax.get_yticklabels()
-            plt.savefig('plots/PLOT_'+chosenLanguage+'_'+a.replace('/','_')+'.png',dpi=60)
+            plt.savefig(inDirectory+'plots/PLOT_'+chosenLanguage+'_'+a.replace('/','_')+'.png',dpi=60)
 #        print '\t',tS["webDir"]+'/charts/PLOT_'+chosenLanguage+'_'+a.replace('/','_')+'.png'
             plt.cla();
 
@@ -138,7 +151,7 @@ def main():
     ax.grid(color='lightgray', alpha=0.7)
     xlabels = ax.get_xticklabels()
     ylabels = ax.get_yticklabels()
-    mpld3.save_html(sentimentFig, 'plots/PLOT_Sentiment_'+chosenLanguage+'.php', figid=chosenLanguage+"sentimentFig")
+    mpld3.save_html(sentimentFig, inDirectory+'plots/PLOT_Sentiment_'+chosenLanguage+'.php', figid=chosenLanguage+"sentimentFig")
 
     #######################
 # Plot top hashtags
@@ -153,7 +166,7 @@ def main():
     ax.set_yticks([i+0.5 for i in range(10)])
     ax.set_xlabel('Number of Tweets')
     ax.set_yticklabels(['#'+v[0] for v in data['hashtags'][-10:]]);
-    plt.savefig('plots/hashtags_'+chosenLanguage+'.png', bbox_inches='tight',dpi=200)
+    plt.savefig(inDirectory+'plots/hashtags_'+chosenLanguage+'.png', bbox_inches='tight',dpi=200)
 
     ##########################
 # plot top URLS
@@ -168,7 +181,7 @@ def main():
     ax.set_yticks([i+0.5 for i in range(10)])
     ax.set_xlabel('Number of Tweets')
     ax.set_yticklabels([v[0] for v in data['domains'][-10:]]);
-    plt.savefig('plots/hashtags_'+chosenLanguage+'.png', bbox_inches='tight',dpi=200)
+    plt.savefig(inDirectory+'plots/hashtags_'+chosenLanguage+'.png', bbox_inches='tight',dpi=200)
 
     ###########################
     # Plot top unigrams
@@ -182,7 +195,7 @@ def main():
     ax.set_yticks([i+0.5 for i in range(10)])
     ax.set_xlabel('Number of Tweets')
     ax.set_yticklabels([v[0].decode('utf-8') for v in data['unigrams'][-10:]]);
-    plt.savefig('plots/hashtags_'+chosenLanguage+'.png', bbox_inches='tight',dpi=200)
+    plt.savefig(inDirectory+'plots/hashtags_'+chosenLanguage+'.png', bbox_inches='tight',dpi=200)
 
     ###########################
 #   Write top users
@@ -196,10 +209,10 @@ def main():
     ax.set_yticks([i+0.5 for i in range(10)])
     ax.set_xlabel('Number of Tweets')
     ax.set_yticklabels(['@'+v[0] for v in data['users'][-10:]]);
-    plt.savefig('plots/users_'+chosenLanguage+'.png', bbox_inches='tight',dpi=200)
+    plt.savefig(inDirectory+'plots/users_'+chosenLanguage+'.png', bbox_inches='tight',dpi=200)
 # TODO write these to file
 
-    writeTop(data['users'][-10:],'data/users_test.tsv')
+    writeTop(data['users'][-10:],inDirectory+'data/users_test.tsv')
     
     ##############################
 # Write top mentions
@@ -213,8 +226,8 @@ def main():
     ax.set_yticks([i+0.5 for i in range(10)])
     ax.set_xlabel('Number of Tweets')
     ax.set_yticklabels(['@'+v[0] for v in data['mentions'][-10:]]);
-    plt.savefig('plots/mentions_'+chosenLanguage+'.png', bbox_inches='tight',dpi=200)
-    writeTop(data['mentions'][-10:],'data/mentions_test.tsv')
+    plt.savefig(inDirectory+'plots/mentions_'+chosenLanguage+'.png', bbox_inches='tight',dpi=200)
+    writeTop(data['mentions'][-10:],inDirectory+'data/mentions_test.tsv')
 
     ###################
 # Write top bigrams
@@ -228,7 +241,7 @@ def main():
     ax.set_yticks([i+0.5 for i in range(10)])
     ax.set_xlabel('Number of Tweets')
     ax.set_yticklabels([v[0][0].decode('utf-8')+' '+v[0][1].decode('utf-8') for v in data['bigrams'][-10:]]);
-    plt.savefig('plots/bigrams_'+chosenLanguage+'.png', bbox_inches='tight',dpi=200)
+    plt.savefig(inDirectory+'plots/bigrams_'+chosenLanguage+'.png', bbox_inches='tight',dpi=200)
 
     ####################
 # Write top trigrams
@@ -243,7 +256,7 @@ def main():
     ax.set_yticks([i+0.5 for i in range(10)])
     ax.set_xlabel('Number of Tweets')
     ax.set_yticklabels([v[0][0].decode('utf-8')+' '+v[0][1].decode('utf-8')+' '+v[0][2].decode('utf-8') for v in data['trigrams'][-10:]]);
-    plt.savefig('plots/trigrams_'+chosenLanguage+'.png', bbox_inches='tight',dpi=200)
+    plt.savefig(inDirectory+'plots/trigrams_'+chosenLanguage+'.png', bbox_inches='tight',dpi=200)
 
 if __name__=='__main__':
     main()

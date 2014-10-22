@@ -1,4 +1,4 @@
-Set of python scripts to parse large DataSift streaming corpora including several sources
+Set of python scripts to parse large DataSift streaming corpora including several sources. Example deployment at [UN Global Pulse climate monitor](http://unglobalpulse.net/climate/)
 
 1. ```python process_ds_files.py```
 Cycles through all files from DataSift ```DataSift*json``` and places messages in daily files. Also counts mentions, hashtags and other attributes. Serialises data in ```counters.dat```. Deleted tweets that appear in the stream written to ```deletions.csv```.
@@ -16,11 +16,11 @@ Reads in serialised data from ```counters.dat``` and produces plots interatively
 Reads in serialised data from ```counters.dat``` and produces plots and data files for web pages
 
 #Usage
-Location of data specified in ```dataDirectory``` and set with ```-d``` flag. If several corpora exist (typically corresponding to different languages) in directories ```data_dir/corp1``` and ```data/corp2``` run with ```python process_ds_files.py -d data/```.  All files of macthing ```DataSift*json``` within these directories and its subdirectories will be considered. This produces all output files in ```corp1``` and ```corp2```.
+* Location of data specified in ```dataDirectory``` and set with ```-d``` flag. If several corpora exist (typically corresponding to different languages) in directories ```data_dir/corp1``` and ```data/corp2``` run with ```python process_ds_files.py -d data_dir/```.  All files of macthing ```DataSift*json``` within these directories and its subdirectories will be considered. This produces all output files in ```corp1``` and ```corp2```.
 
-To restrict to content geo-located to a particular country only; pass in 2 letter ISO country code ```python process_ds_files.py -C UK```
+* To restrict to content geo-located to a particular country only; pass in 2 letter ISO country code ```python process_ds_files.py -C UK```
 
-To produce a map of content snapped to particular cities for use in DC.js dashboard supply a list of cities ```python process_ds_files.py -c cities.csv```
+* To produce a map of content snapped to particular cities for use in DC.js dashboard supply a list of cities ```python process_ds_files.py -c cities.csv```
 
 #Output Files
 ```process_ds_files.py``` produces a set of files for each corpora (each directory within ```dataDirectory```)
@@ -39,3 +39,8 @@ To produce a map of content snapped to particular cities for use in DC.js dashbo
 * [NLTK](http://www.nltk.org/)
 * [Langid](https://github.com/saffsd/langid.py)
 * [GeoPy](https://pypi.python.org/pypi/geopy/1.3.0)
+
+#TODOs
+
+* Find a more consistent way to count over topics (and sub topics)
+
