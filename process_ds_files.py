@@ -11,7 +11,7 @@ import sys,time,csv
 sys.path.append('/mnt/home/ubuntu/projects/tools/')
 import gender,geolocator
 from utils import *
-import glob,os.path,re,json,collections,operator
+import glob,os.path,re,json,collections,operator,random
 from sets import Set
 import cPickle as pickle
 import datetime,dateutil.parser
@@ -35,6 +35,20 @@ r=True
 r=False
 # Flag to remove DS files once parsed
 
+cities=None
+
+if '-c' in sys.argv:
+    # Flag for reading in list of cities and creating DC.js file
+    # a la UNAIDS Brazil
+    i=(sys.argv).index('-c')
+    cityFileName=sys.argv[i+1]
+    cities,nCityError=getCities(cityFileName,geo)
+    print 'GOT CITIES FROM',cityFileName
+    print 'CITY ERRORS',nCityError
+    # Open city file later once next level directory is defined
+    # <pobably corresponds to language>
+    time.sleep(1)
+
 v=True
 #v=False
 # Verbose flag
@@ -47,9 +61,9 @@ if '-d' in sys.argv:
 
 chosenCountry=None
 
-if '-c' in sys.argv:
+if '-C' in sys.argv:
     # Flag for filtering by country
-    i=(sys.argv).index('-c')
+    i=(sys.argv).index('-C')
     chosenCountry=sys.argv[i+1]
     dateFileFormat='/[0-9][0-9][0-9][0-9]_*[0-9][0-9]_[0-9][0-9]_'+chosenCountry+'.json'
     print 'ADDED COUNTRY FLAG',chosenCountry
@@ -85,14 +99,14 @@ def fileStream(l):
         if len(files)>0:
         # Find all files
 #                print root,dirs,files
-            for f in files[0:5]:
+            for f in files:
                 if re.match(r'DataSift',f):
                 # Check that they are actual datasift files
 #                        print '\t',root+f
                     yield root+'/'+f
 
 #############
-def processFile(l,f,dateFileHash,counterDict,cartoFile,deletionsFile):
+def processFile(l,f,dateFileHash,counterDict,cartoFile,deletionsFile,dcFile):
 #############
     '''Takes directory corresponding to language directory, file to process
     and list of existing daily files. Adds contents of file to counters
@@ -112,6 +126,8 @@ def processFile(l,f,dateFileHash,counterDict,cartoFile,deletionsFile):
     nGeoError=0
     nUserError=0
     nFacebook=0
+    nDcError=0
+    nTopicError=0
 
     twTimes=[]
     twPositives=[]
@@ -131,7 +147,21 @@ def processFile(l,f,dateFileHash,counterDict,cartoFile,deletionsFile):
     for line in fileString.split('\n'):
 
         message=json.loads(line)
-        #detectedLang=langid.classify(tweet['interaction']['content'].encode('utf-8'))
+
+        chosenTopic=None
+
+        try:
+            messageTopics=message['interaction']['tag_tree']['topic'].items()
+            # This is currently over-engineered to Brazil case
+            # which has topics and subtopics
+            if len(messageTopics)==1:
+                chosenTopic=messageTopics[0][0]+'_'+messageTopics[0][1][0]
+            else:
+                chosenTopic=random.choice(messageTopics)
+                chosenTopic=chosenTopic[0]+'_'+chosenTopic[1][0]
+        except:
+            print traceback.print_exc()
+            nTopicError+=1
 
         if not 'deleted' in message.keys() and not 'facebook' in message.keys():
         # Catch deletions and facebook content
@@ -201,10 +231,26 @@ def processFile(l,f,dateFileHash,counterDict,cartoFile,deletionsFile):
                 ###############################################   
                 '''Carto'''
                 try:
-                    isoTime=datetime.datetime.strptime(message['interaction']['created_at'],'%a, %d %b %Y %H:%M:%S +0000')
-                    cartoFile.writerow([message['twitter']['id'],str(message['twitter']['geo']['latitude']),str(message['twitter']['geo']['longitude']),isoTime])
+#                    isoTime=datetime.datetime.strptime(message['interaction']['created_at'],'%a, %d %b %Y %H:%M:%S +0000')
+                    coords=(message['twitter']['geo']['latitude'],message['twitter']['geo']['longitude'])
+                    isoTime=getISODate(message['interaction']['created_at'])
+                    cartoFile.writerow([message['twitter']['id'],str(coords[0]),str(coords[1]),isoTime])
+                    '''Add in country snapping for DC.js now'''
                 except:
                     nGeoError+=1
+                ####################################   
+                '''DC.js'''
+                try:
+                    #TODO get topic
+                    coords=(message['twitter']['geo']['latitude'],message['twitter']['geo']['longitude'])
+#                    print message['twitter']['geo']['latitude'],tweetTime,
+                    isoTime=getISODate(message['interaction']['created_at'])
+                    closestCityCoords,closestCity=getClosestCity(cities,coords,tol=120)
+#                    print closestCityCoords,closestCity
+                    if closestCity:dcFile.writerow([closestCity.encode('utf-8'),closestCityCoords[0],closestCityCoords[1],isoTime,chosenTopic])
+                except:
+                    print traceback.print_exc()
+                    nDcError+1
                 ####################################   
                 '''Hashtags'''
                 try:
@@ -308,7 +354,6 @@ def processFile(l,f,dateFileHash,counterDict,cartoFile,deletionsFile):
         ###################################
         elif 'facebook' in message.keys():
         ###################################
-        # For now ignore FB content
             fbTime=None
             
             fbContent=message['interaction']['content'].encode('utf-8')
@@ -354,7 +399,7 @@ def processFile(l,f,dateFileHash,counterDict,cartoFile,deletionsFile):
                 ###############################################   
                 '''Sentiment'''
                 '''TODO'''
-                if tweetTime and inCountry:
+                if fbTime and inCountry:
                 # Only add sentiment if time successfully extracted
                 # else cannot make dataframe 
                     if re.search(posRe,fbContent):
@@ -378,7 +423,7 @@ def processFile(l,f,dateFileHash,counterDict,cartoFile,deletionsFile):
                 '''Write FB message to file'''
                 if not fbTime==None:
                 # If time is missing, cannot write to daily file
-                    tweetFileName=dateFileName(tweetTime,l)
+                    tweetFileName=dateFileName(fbTime,l)
                     # This is the file where message should be put
                                 
                     if inCountry and not tweetFileName in dateFileHash.keys():
@@ -470,8 +515,8 @@ def processFile(l,f,dateFileHash,counterDict,cartoFile,deletionsFile):
         counterDict['fb']['time']=counterDict['fb']['time'].add(tempFbDf.resample('D',how='count')['time'],fill_value=0)
    ####################### 
     if v:
-        print 'TIME (tw,fb)\tHASHTAG\tMENTION\tDOMAIN\tLOC\tGENDER\tUSER\tDEL\tDUP\tFB\tTOTAL'
-        print nTwTimeError,nFbTimeError,'\t',nHashTagError,'\t',nMentionError,'\t',nDomainError,'\t',nLocationError,'\t',nGenderError,'\t',nUserError,'\t',nDeleted,'\t',nFileDuplicate,'\t',nFacebook,'\t',nTotal
+        print 'TIME (tw,fb)\tHASHTAG\tMENTION\tDOMAIN\tLOC\tGENDER\tUSER\tDEL\tDUP\tFB\tTOPICS\tTOTAL'
+        print nTwTimeError,nFbTimeError,'\t',nHashTagError,'\t',nMentionError,'\t',nDomainError,'\t',nLocationError,'\t',nGenderError,'\t',nUserError,'\t',nDeleted,'\t',nFileDuplicate,'\t',nFacebook,'\t',nTopicError,'\t',nTotal
     if r:os.remove(f)
     # Delete file when not needed any more
     return counterDict,dateFileHash,nFileDuplicate,nTotal,nDeleted,nUserError,nFacebook
@@ -563,6 +608,14 @@ def initCounters(l):
         inFile.close()
         data=None
     else:
+        print 'DIDNT FIND OLD PICKLE FILE'
+        print 'ATTEMPTING TO CLEAN OLD DAILY FILES'
+        time.sleep(3)
+
+        for f in glob.glob(l+dateFileFormat):
+            os.remove(f)
+       
+        os.remove(l+cartoFileName)
         
         fbTimeSeries=None
         fbPosSeries=None
@@ -636,7 +689,7 @@ def main():
     # e.g. if dataDirectory is '../data/', language directories might be
     # '../data/english/','../data/french/'
 
-    for l in languageDirectories:
+    for l in languageDirectories[0:1]:
         print 'LANGUAGE',l
         nDuplicates=0
         # Reset this for each language
@@ -671,6 +724,10 @@ def main():
         dateFileNames=glob.glob(l+dateFileFormat)
         # These are the daily files which already exist in language directory
     
+        dcFile=csv.writer(open(l+'/'+'dc.csv','w'),delimiter=',')
+        dcFile.writerow(['city','lat','lon','origdate','topic'])
+        # This is file used by DC.js with geo-located messages
+
         dateFileHash={}
         for d in dateFileNames:
             dateFileHash[d]=open(d,'a')
@@ -682,7 +739,7 @@ def main():
             if not f in dsFileSet:
                 if v:print '\tPROCESSING',f
 
-                counterDict,dateFileHash,nFileDuplicates,nFile,nFileDeletes,nUserError,nFileFacebook=processFile(l,f,dateFileHash,counterDict,cartoFile,deletionsFile) 
+                counterDict,dateFileHash,nFileDuplicates,nFile,nFileDeletes,nUserError,nFileFacebook=processFile(l,f,dateFileHash,counterDict,cartoFile,deletionsFile,dcFile) 
                 # Read file and process line by line
                 # Update hash of daily files in case new ones are created
                 nDuplicates+=nFileDuplicates
