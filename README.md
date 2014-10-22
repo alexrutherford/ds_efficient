@@ -24,6 +24,7 @@ To produce a map of content snapped to particular cities for use in DC.js dashbo
 
 #Output Files
 ```process_ds_files.py``` produces a set of files for each corpora (each directory within ```dataDirectory```)
+
 1. Set of daily files of form ```YYYY_MM_DD.json```, holds all messages from that day
 2. Pickle file holding all counters and time series ```counters.dat```
 3. Input file to CartoDB ```carto.txt```
