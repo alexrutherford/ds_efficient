@@ -150,7 +150,6 @@ def processFile(l,f,dateFileHash,counterDict,cartoFile,deletionsFile,dcFile):
         message=json.loads(line)
 
         chosenTopic=None
-
         ###########
         '''choose a topic here '''
         try:
@@ -249,7 +248,7 @@ def processFile(l,f,dateFileHash,counterDict,cartoFile,deletionsFile,dcFile):
 #                    print closestCityCoords,closestCity
                     if closestCity:dcFile.writerow([closestCity.encode('utf-8'),closestCityCoords[0],closestCityCoords[1],isoTime,chosenTopic])
                 except:
-                    print traceback.print_exc()
+#                    print traceback.print_exc()
                     nDcError+1
                 ####################################   
                 '''Hashtags'''
@@ -419,12 +418,17 @@ def processFile(l,f,dateFileHash,counterDict,cartoFile,deletionsFile,dcFile):
                 except:
                     nUserError+=1
                 if fbUser and inCountry:
-                    counterDict['fb']['user'][fbUser]+=1
+                    counterDict['fb']['users'][fbUser]+=1
                 ###############################################   
                 '''Gender'''
                 try:
                     g=genderClassifier.gender(message['facebook']['demographic']['gender'])
                     message['ungp']['gender']=g
+                    if chosenTopic in counterDict['fb']['genderTopic'].keys():
+                        counterDict['fb']['genderTopic']['chosenTopic'][g]+=1
+                    else:
+                        counterDict['fb']['genderTopic']['chosenTopic']=collections.defaultdict(int)
+                        counterDict['fb']['genderTopic']['chosenTopic'][g]=1
                 except:
                     nGenderError+=1
                 ###############################################   
@@ -533,8 +537,8 @@ def processFile(l,f,dateFileHash,counterDict,cartoFile,deletionsFile,dcFile):
     ''' facebook'''
     '''topics'''
     '''sentiments'''
-    print 'times,pos,neg'
-    print len(fbTimes),len(fbPositives),len(fbNegatives)
+#    print 'times,pos,neg'
+#    print len(fbTimes),len(fbPositives),len(fbNegatives)
     tempDf=pd.DataFrame(data={'time':fbTimes,'pos':fbPositives,'neg':fbNegatives},index=fbTimes)
     # Make a dataframe with contents of this file
     # TODO count over something better
@@ -559,7 +563,7 @@ def processFile(l,f,dateFileHash,counterDict,cartoFile,deletionsFile,dcFile):
    ####################### 
     if v:
         print 'TIME (tw,fb)\tHASHTAG\tMENTION\tDOMAIN\tLOC\tGENDER\tUSER\tDEL\tDUP\tFB\tTOPICS\tTOTAL'
-        print nTwTimeError,nFbTimeError,'\t',nHashTagError,'\t',nMentionError,'\t',nDomainError,'\t',nLocationError,'\t',nGenderError,'\t',nUserError,'\t',nDeleted,'\t',nFileDuplicate,'\t',nFacebook,'\t',nTopicError,'\t',nTotal
+        print '\t',nTwTimeError,nFbTimeError,'\t',nHashTagError,'\t',nMentionError,'\t',nDomainError,'\t',nLocationError,'\t',nGenderError,'\t',nUserError,'\t',nDeleted,'\t',nFileDuplicate,'\t',nFacebook,'\t',nTopicError,'\t',nTotal
     if r:os.remove(f)
     # Delete file when not needed any more
     return counterDict,dateFileHash,nFileDuplicate,nTotal,nDeleted,nUserError,nFacebook
@@ -619,6 +623,7 @@ def initCounters(l):
         data=pickle.load(inFile)
         
         twTopicCountryCounter=data['tw']['topicCountry']        
+        twGenderTopicCounter=data['tw']['genderTopic']        
         twUserCounter=data['tw']['users']
         twMentionCounter=data['tw']['mentions']
         twUnigramCounter=data['tw']['unigrams']
@@ -645,7 +650,9 @@ def initCounters(l):
         fbUserCounter=data['fb']['users']
         fbLanguageCounter=data['fb']['languages']
         fbDomainCounter=data['fb']['domains']
-
+        fbTopicCountryCounter=data['fb']['topicCountry']        
+        fbGenderTopicCounter=data['fb']['genderTopic']        
+        
         dsFileSet=data['ds']
 
         inFile.close()
@@ -670,6 +677,8 @@ def initCounters(l):
         fbNegSeries=None
         fbIdSet=set([])
         fbTopicCounter={}
+        fbTopicCountryCounter={}
+        fbGenderTopicCounter={}
         fbUnigramCounter=collections.defaultdict(int)
         fbBigramCounter=collections.defaultdict(int)
         fbTrigramCounter=collections.defaultdict(int)
@@ -688,6 +697,7 @@ def initCounters(l):
         twLanguageCounter=collections.defaultdict(int)
         twTopicCounter={}
         twTopicCountryCounter={}
+        twGenderTopicCounter={}
         twTimeSeries=None
         twPosSeries=None
         twNegSeries=None
@@ -710,6 +720,7 @@ def initCounters(l):
     counterDict['tw']['trigrams']=twTrigramCounter
     counterDict['tw']['users']=twUserCounter
     counterDict['tw']['topicCountry']=twTopicCountryCounter
+    counterDict['tw']['genderTopic']=twGenderTopicCounter
     counterDict['tw']['languages']=twLanguageCounter
 
     counterDict['fb']['time']=fbTimeSeries
@@ -723,7 +734,9 @@ def initCounters(l):
     counterDict['fb']['users']=fbUserCounter
     counterDict['fb']['languages']=fbLanguageCounter
     counterDict['fb']['domains']=fbDomainCounter
-
+    counterDict['fb']['topicCountry']=fbTopicCountryCounter
+    counterDict['fb']['genderTopic']=fbGenderTopicCounter
+    
     counterDict['ds']=dsFileSet
     
     return counterDict,dsFileSet
@@ -731,13 +744,13 @@ def initCounters(l):
 def main():
 #############
 
-    languageDirectories=glob.glob(dataDirectory+'*')
+    languageDirectories=glob.glob(dataDirectory+'*/')
     # Top level directories in dataDirectory refer to language buckets
     # Count these separately. Directory structure within these can be arbitrary
     # e.g. if dataDirectory is '../data/', language directories might be
     # '../data/english/','../data/french/'
 
-    for l in languageDirectories[3:]:
+    for l in languageDirectories[1:]:
         print 'LANGUAGE',l
         nDuplicates=0
         # Reset this for each language
