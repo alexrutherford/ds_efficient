@@ -16,14 +16,14 @@ Reads in serialised data from ```counters.dat``` and produces plots interatively
 Reads in serialised data from ```counters.dat``` and produces plots and data files for web pages
 
 #Usage
-* Location of data specified in ```dataDirectory``` and set with ```-d``` flag. If several corpora exist (typically corresponding to different languages) in directories ```data_dir/corp1``` and ```data/corp2``` run with ```python process_ds_files.py -d data_dir/```.  All files of macthing ```DataSift*json``` within these directories and its subdirectories will be considered. This produces all output files in ```corp1``` and ```corp2```.
+* Location of data specified by ```dataDirectory``` and set with ```-d``` flag. If several corpora exist (typically corresponding to different languages) then invoke separately for each one (only overhead for running multiple times is parsing of geolocation world pickle file).  All files of matching ```DataSift*json``` within these directories and its subdirectories will be considered. This produces all output files in ```dataDirectory```.
 
 * To restrict to content geo-located to a particular country only; pass in 2 letter ISO country code ```python process_ds_files.py -C UK```
 
 * To produce a map of content snapped to particular cities for use in DC.js dashboard supply a list of cities ```python process_ds_files.py -c cities.csv```
 
 #Output Files
-```process_ds_files.py``` produces a set of files for each corpora (each directory within ```dataDirectory```)
+```process_ds_files.py``` produces a set of files for each corpora (in ```dataDirectory```)
 
 1. Set of daily files of form ```YYYY_MM_DD.json```, holds all messages from that day
 2. Pickle file holding all counters and time series ```counters.dat```
@@ -43,4 +43,4 @@ Reads in serialised data from ```counters.dat``` and produces plots and data fil
 #TODOs
 
 * Find a more consistent way to count over topics (and sub topics)
-
+* Add in gender time series for each topic
