@@ -744,96 +744,90 @@ def initCounters(l):
 def main():
 #############
 
-    languageDirectories=glob.glob(dataDirectory+'*/')
-    # Top level directories in dataDirectory refer to language buckets
-    # Count these separately. Directory structure within these can be arbitrary
-    # e.g. if dataDirectory is '../data/', language directories might be
-    # '../data/english/','../data/french/'
-
-    for l in languageDirectories[1:]:
-        print 'LANGUAGE',l
-        nDuplicates=0
-        # Reset this for each language
-      
-        nSkippedFiles=0
-        # Counts DataSift fiels that we already processed
-       
-        nTotal=0
-        # Total number of tweets processed, excluding duplicates and skipped files
-
-        nDeletes=0
-        # Count number of tweets in stream that are deleted messages
-        
-        nFacebook=0
-        # Count number of FB posts
-
-        idSet=Set()
-        # This is a set that hlds all tweet ids, to ensure duplicates are removed
-        # New set for each language (assumes langages will have separate DS streams)
-       
-        dsFileSet=Set()
-        # This set holds all the DataSift file names
-        # Thus duplicate files are skipped over
-        
-        counterDict,dsFileSet=initCounters(l)
-        # Look for dumpfile to load in counters, if not there create empty ones
+    nDuplicates=0
+    # Reset this for each language
+  
+    nSkippedFiles=0
+    # Counts DataSift fiels that we already processed
    
-        deletionsFile=initDeletionsFile(l)
+    nTotal=0
+    # Total number of tweets processed, excluding duplicates and skipped files
+
+    nDeletes=0
+    # Count number of tweets in stream that are deleted messages
     
-        cartoFile=initCarto(cartoFileName,l)
-     
-        dateFileNames=glob.glob(l+dateFileFormat)
-        # These are the daily files which already exist in language directory
+    nFacebook=0
+    # Count number of FB posts
+
+    idSet=Set()
+    # This is a set that hlds all tweet ids, to ensure duplicates are removed
+    # New set for each language (assumes langages will have separate DS streams)
+   
+    dsFileSet=Set()
+    # This set holds all the DataSift file names
+    # Thus duplicate files are skipped over
     
-        dcFile=csv.writer(open(l+'/'+'dc.csv','w'),delimiter=',')
-        dcFile.writerow(['city','lat','lon','origdate','topic'])
-        # This is file used by DC.js with geo-located messages
+    l=dataDirectory
 
-        dateFileHash={}
-        for d in dateFileNames:
-            dateFileHash[d]=open(d,'a')
-            print d
-        # Create a dictionary, key is date file name
-        # value is file opened for appending
+    counterDict,dsFileSet=initCounters(l)
+    # Look for dumpfile to load in counters, if not there create empty ones
 
-        for f in fileStream(l):
-            if not f in dsFileSet:
-                if v:print '\tPROCESSING',f
+    deletionsFile=initDeletionsFile(l)
 
-                counterDict,dateFileHash,nFileDuplicates,nFile,nFileDeletes,nUserError,nFileFacebook=processFile(l,f,dateFileHash,counterDict,cartoFile,deletionsFile,dcFile) 
-                # Read file and process line by line
-                # Update hash of daily files in case new ones are created
-                nDuplicates+=nFileDuplicates
-                nTotal+=nFile
-                nDeletes+=nFileDeletes
-                nFacebook+=nFileFacebook
-                dsFileSet.add(f)
-            else:
-                if v:print '\tSKIPPING DUPLICATE',f 
-                nSkippedFiles+=1
+    cartoFile=initCarto(cartoFileName,l)
+ 
+    dateFileNames=glob.glob(l+dateFileFormat)
+    # These are the daily files which already exist in language directory
+
+    dcFile=csv.writer(open(l+'/'+'dc.csv','w'),delimiter=',')
+    dcFile.writerow(['city','lat','lon','origdate','topic'])
+    # This is file used by DC.js with geo-located messages
+
+    dateFileHash={}
+    for d in dateFileNames:
+        dateFileHash[d]=open(d,'a')
+        print d
+    # Create a dictionary, key is date file name
+    # value is file opened for appending
+
+    for f in fileStream(l):
+        if not f in dsFileSet:
+            if v:print '\tPROCESSING',f
+
+            counterDict,dateFileHash,nFileDuplicates,nFile,nFileDeletes,nUserError,nFileFacebook=processFile(l,f,dateFileHash,counterDict,cartoFile,deletionsFile,dcFile) 
+            # Read file and process line by line
+            # Update hash of daily files in case new ones are created
+            nDuplicates+=nFileDuplicates
+            nTotal+=nFile
+            nDeletes+=nFileDeletes
+            nFacebook+=nFileFacebook
+            dsFileSet.add(f)
+        else:
+            if v:print '\tSKIPPING DUPLICATE',f 
+            nSkippedFiles+=1
 #        counterDict['fb']['ids']=fbIdSet
 #        counterDict['tw']['ids']=twIdSet
-        counterDict['ds']=dsFileSet
+    counterDict['ds']=dsFileSet
 
-        writeCounters(l,counterDict)
-        # Persist counters to pickle file
+    writeCounters(l,counterDict)
+    # Persist counters to pickle file
 
-        deletionsFile.close()
+    deletionsFile.close()
 
-        if v:
-            print 'AT END', 
-            printTop(counterDict['tw']['hashtags'],10)
-            print '----------------------------------------------'
-        if True:
-            print 'SKIPPED',nSkippedFiles
-            print 'DUPLICATES',nDuplicates
-            print 'DELETED',nDeletes
-            print 'TOTAL NEW',nTotal
-            print 'TOTAL FACEBOOK',nFacebook
+    if v:
+        print 'AT END', 
+        printTop(counterDict['tw']['hashtags'],10)
+        print '----------------------------------------------'
+    if True:
+        print 'SKIPPED',nSkippedFiles
+        print 'DUPLICATES',nDuplicates
+        print 'DELETED',nDeletes
+        print 'TOTAL NEW',nTotal
+        print 'TOTAL FACEBOOK',nFacebook
 
-        for d in dateFileHash.values():
-            d.close()
-        # Close out fdaily files
+    for d in dateFileHash.values():
+        d.close()
+    # Close out fdaily files
 #############################
 if __name__=="__main__":
     main()
