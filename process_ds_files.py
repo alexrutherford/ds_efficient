@@ -160,10 +160,11 @@ def processFile(l,f,dateFileHash,counterDict,cartoFile,deletionsFile,dcFile):
             messageTopics=message['interaction']['tag_tree']['topic']
             
             if len(messageTopics)==1:
-                chosenTopic=messageTopics[0][0]+'_'+messageTopics[0][1][0]
+#                chosenTopic=messageTopics[0][0]+'_'+messageTopics[0][1][0]
+                chosenTopic=messageTopics[0]
             else:
                 chosenTopic=random.choice(messageTopics)
-                chosenTopic=chosenTopic[0]+'_'+chosenTopic[1][0]
+#                chosenTopic=chosenTopic[0]+'_'+chosenTopic[1][0]
         except:
             nTopicError+=1
         ##############
