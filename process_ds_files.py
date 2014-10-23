@@ -153,9 +153,12 @@ def processFile(l,f,dateFileHash,counterDict,cartoFile,deletionsFile,dcFile):
         ###########
         '''choose a topic here '''
         try:
-            messageTopics=message['interaction']['tag_tree']['topic'].items()
+#            messageTopics=message['interaction']['tag_tree']['topic'].items()
             # This is currently over-engineered to Brazil case
             # which has topics and subtopics
+
+            messageTopics=message['interaction']['tag_tree']['topic']
+            
             if len(messageTopics)==1:
                 chosenTopic=messageTopics[0][0]+'_'+messageTopics[0][1][0]
             else:
@@ -289,15 +292,25 @@ def processFile(l,f,dateFileHash,counterDict,cartoFile,deletionsFile,dcFile):
                         counterDict['tw']['users'][twitterUser]+=1 
                 else:
                     nUserError+=1
-                
                 ###############################################   
                 '''Gender'''
                 try:
-                    g=genderClassifier.gender(message['twitter']['user']['name'])
+                    g=genderClassifier.gender(message['interaction']['author']['name'])
                     g=g.values()[0]['gender']
                     message['ungp']['gender']=g
+                    if chosenTopic in counterDict['tw']['genderTopic'].keys():
+                        counterDict['tw']['genderTopic'][chosenTopic][g]+=1
+                    else:
+                        counterDict['tw']['genderTopic'][chosenTopic]=collections.defaultdict(int)
+                        counterDict['tw']['genderTopic'][chosenTopic][g]+=1
                 except:
                     nGenderError+=1
+#                    print traceback.print_exc()
+#                    print 'chosen',chosenTopic
+#                    print 'g',g
+#                    print type(counterDict['tw']),type(counterDict['tw']['genderTopic']),type(counterDict['tw']['genderTopic'][chosenTopic])
+#                    print message
+#                    time.sleep(999999)
                 ###############################################   
                 '''Sentiment'''
                 if tweetTime and inCountry:
