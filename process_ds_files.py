@@ -71,7 +71,7 @@ if '-C' in sys.argv:
     # If a flag used to filter by country
     # need to change the format of daily files
     
-counterFileName='/counters.dat'
+counterFileName='/counters_.dat'
 cartoFileName='/carto.txt'
 
 if chosenCountry:
@@ -172,7 +172,8 @@ def processFile(l,f,dateFileHash,counterDict,cartoFile,deletionsFile,dcFile):
         if not 'deleted' in message.keys() and not 'facebook' in message.keys():
         # Catch deletions and facebook content
             tweetContent=message['interaction']['content'].encode('utf-8')
-            
+            tweetContent=re.sub(cleanRe,' ',tweetContent)
+                        
             lang1,lang2,lang3='','','' 
             try:
                 lang1=message['language']['tag']
@@ -371,6 +372,7 @@ def processFile(l,f,dateFileHash,counterDict,cartoFile,deletionsFile,dcFile):
             
             try:
                 fbContent=message['interaction']['content'].encode('utf-8')
+                fbContent=re.sub(cleanRe,' ',fbContent)
             except:
 #                print 'CONTENT ERROR',message.keys(),message['interaction'].keys()
                 fbContentError+1

@@ -1,7 +1,8 @@
 '''
 Script to read in counters*.dat produced by process_ds_files.py
 Produces plots of time series and bar charts of top mentions etc
-Replaces plot_stuff_RCN.py and time_volume_plot_efficient.ipynb
+Replaces plot_stuff_RCN.py and time_volume_plot_efficient.ipynb.
+Considers twitter and Facebook streams
 '''
 import matplotlib
 matplotlib.use('Agg')
@@ -25,20 +26,25 @@ import itertools
 plotColours=['#1B6E44','#6D1431','#FF5500','#5D6263','#009D97','#c84699','#71be45','#3F8CBC','#FFC200']
 plotCycle=itertools.cycle(plotColours)
 
-inFileName='../data_test/english/counters.dat'
+inDirectory='../data_test/english/'
+inFileName=inDirectory+'counters_.dat'
 
-if '-i' in sys.argv:
-    # Set intput file
-    i=(sys.argv).index('-l')
-    inFileName=sys.argv[i+1]
+if '-d' in sys.argv:
+    # Set input directory
+    i=(sys.argv).index('-d')
+    inDirectory=sys.argv[i+1]
+    inFileName=inDirectory+'counters_.dat'
     print 'SET INPUT FILE',inFileName
     time.sleep(1)
 
 inFile=open(inFileName,'r')
 data=pickle.load(inFile)
-inDirectory=('/'.join(inFileName.split('/')[0:-1]))+'/'
-os.mkdir(inDirectory+'plots')
-os.mkdir(inDirectory+'data')
+
+try:
+    os.mkdir(inDirectory+'plots')
+    os.mkdir(inDirectory+'data')
+except:
+    print 'plots AND data DIRECTORIES ALREADY EXIST'
 # Where to place plots/data
 
 chosenLanguage='english'
@@ -66,197 +72,223 @@ def writeTop(counter,f):
 #############
 def main():
 #############
-    #####################
-    # Topics
-    topicSums={}
-    for k,v in data['topics'].items():
-        print k,v.sum()
-        topicSums[k]=v.sum()
-    topicSums=sorted(topicSums.items(), key=operator.itemgetter(1))
+    for source in ['tw','fb']:
+        print source,'TOPICS'
+        #####################
+        # Topics
+        topicSums={}
+        for k,v in data[source]['topics'].items():
+#            print k,v.sum()
+            topicSums[k]=v.sum()
+        topicSums=sorted(topicSums.items(), key=operator.itemgetter(1))
 
-    maxs={}
-    sortedMaxs=[]
-    for a,b in data['topics'].items():
-        if not a==u'NaN':
-            maxs[a]=b.sum()
-            sortedMaxs=sorted(maxs.iteritems(), key=operator.itemgetter(1))
-            sortedMaxs.reverse()
+        maxs={}
+        sortedMaxs=[]
+        for a,b in data[source]['topics'].items():
+            if not a==u'NaN':
+                maxs[a]=b.sum()
+                sortedMaxs=sorted(maxs.iteritems(), key=operator.itemgetter(1))
+                sortedMaxs.reverse()
 
-    fig = plt.figure()
-    ax=fig.add_subplot(111)
-    ax.barh(range(len(topicSums)),[v[1] for v in topicSums],log=False,linewidth=0,alpha=0.7,color="#00aeef")
-    ax.set_axis_bgcolor('#efefef')
-    ax.xaxis.set_major_formatter(formatter)
-    ax.xaxis.set_major_locator(plt.MaxNLocator(4))
-    ax.set_yticks([i+0.5 for i in range(len(topicSums))])
-    ax.set_xlabel('Number of Tweets')
-    ax.set_yticklabels([v[0] for v in topicSums]);
-    plt.savefig(inDirectory+'plots/hashtags_'+chosenLanguage+'.png', bbox_inches='tight',dpi=200)
-    # Get sum of topics, use this to plot in some kind of order
+        fig = plt.figure()
+        ax=fig.add_subplot(111)
+        ax.barh(range(len(topicSums)),[v[1] for v in topicSums],log=False,linewidth=0,alpha=0.7,color="#00aeef")
+        ax.set_axis_bgcolor('#efefef')
+        ax.xaxis.set_major_formatter(formatter)
+        ax.xaxis.set_major_locator(plt.MaxNLocator(4))
+        ax.set_yticks([i+0.5 for i in range(len(topicSums))])
+        ax.set_xlabel('Number of Tweets')
+        ax.set_yticklabels([v[0] for v in topicSums]);
+        plt.savefig(inDirectory+'plots/'+source+'_hashtags_'+chosenLanguage+'.png', bbox_inches='tight',dpi=200)
+        # Get sum of topics, use this to plot in some kind of order
 
-    #####################
-    # Plot total voume time series
+        #####################
+        # Plot total voume time series
 
-    sns.set(context='poster', style='whitegrid', font='Arial', rc={'font.size': 14, 'axes.labelsize': 16, 'legend.fontsize': 14.0,'axes.titlesize': 12, 'xtick.labelsize': 14, 'ytick.labelsize': 14})
-    sns.despine()
-    rc={'font.size': 14, 'axes.labelsize': 16, 'legend.fontsize': 14.0, 
-        'axes.titlesize': 12, 'xtick.labelsize': 14, 'ytick.labelsize': 12}
-    totalSeriesFig, ax = plt.subplots()
-    ax=data['time'].plot(legend=False,figsize=(14,8),style=gpBlue,lw=7)
-    ax.grid(color='lightgray', alpha=0.4)
-    ax.axis(ymin=0)
-    plt.savefig(inDirectory+'plots/PLOT_'+chosenLanguage+'_Total.png',dpi=60)
-    mpld3.save_html(totalSeriesFig, inDirectory+'plots/PLOT_'+chosenLanguage+'_Total.php', figid=chosenLanguage+"TotalSeriesFig")
+        print source,'TOTAL'
+        
+        sns.set(context='poster', style='whitegrid', font='Arial', rc={'font.size': 14, 'axes.labelsize': 16, 'legend.fontsize': 14.0,'axes.titlesize': 12, 'xtick.labelsize': 14, 'ytick.labelsize': 14})
+        sns.despine()
+        rc={'font.size': 14, 'axes.labelsize': 16, 'legend.fontsize': 14.0, 
+            'axes.titlesize': 12, 'xtick.labelsize': 14, 'ytick.labelsize': 12}
+        totalSeriesFig, ax = plt.subplots()
+        ax=data[source]['time'][0:-1].plot(legend=False,figsize=(14,8),style=gpBlue,lw=7)
+        ax.grid(color='lightgray', alpha=0.4)
+        ax.axis(ymin=0)
+        plt.savefig(inDirectory+'plots/'+source+'_total_'+chosenLanguage+'.png',dpi=60)
+        mpld3.save_html(totalSeriesFig, inDirectory+'plots/'+source+'_total_'+chosenLanguage+'.php', figid=chosenLanguage+"TotalSeriesFig")
 
-    #####################
-    # Plot all topics together
+        #####################
+        # Plot all topics together
 
-    allSeriesFig, ax = plt.subplots()
-    for c in sortedMaxs:
-        if not c[0]=='NaN':
-            a=c[0]
-            b=data['topics'][a]
+        allSeriesFig, ax = plt.subplots()
+        for c in sortedMaxs:
+            if not c[0]=='NaN':
+                a=c[0]
+                b=data[source]['topics'][a]
 
-            col=plotCycle.next()
-            print a,col
-            ax=b.plot(label=a,legend=True,figsize=(14,8),style=col,lw=3)
-            ax.grid(color='lightgray', alpha=0.7)
-            xlabels = ax.get_xticklabels()
-            ylabels = ax.get_yticklabels()
-            mpld3.save_html(allSeriesFig, inDirectory+'plots/PLOT_'+chosenLanguage+'_All.php', figid=chosenLanguage+"AllSeriesFig")
+                col=plotCycle.next()
+#                print a,col
+                ax=b.plot(label=a,legend=True,figsize=(14,8),style=col,lw=3)
+                ax.grid(color='lightgray', alpha=0.7)
+                xlabels = ax.get_xticklabels()
+                ylabels = ax.get_yticklabels()
+                mpld3.save_html(allSeriesFig, inDirectory+'plots/'+source+'_all_'+chosenLanguage+'.php', figid=chosenLanguage+"AllSeriesFig")
 
-    ######################
+        ######################
 # Plot individual topics
 
-    for c in sortedMaxs:    
-        if not c[0]==u'NaN':
-            a=c[0]
-            b=data['topics'][a]
-            col=plotCycle.next()
-            print a,col,b.max(),b.min()
-            sns.set(context='poster', style='whitegrid', font='Arial', rc={'font.size': 14, 'axes.labelsize': 16, 'legend.fontsize': 14.0,'axes.titlesize': 12, 'xtick.labelsize': 20, 'ytick.labelsize': 18})
-            ax=b.plot(label=a,legend=False,figsize=(20,12),style=col,lw=7)
-            xlabels = ax.get_xticklabels()
-            ylabels = ax.get_yticklabels()
-            plt.savefig(inDirectory+'plots/PLOT_'+chosenLanguage+'_'+a.replace('/','_')+'.png',dpi=60)
+        print source,'INDIVIDUAL TOTAL'
+        
+        for c in sortedMaxs:    
+            if not c[0]==u'NaN':
+                a=c[0]
+                b=data[source]['topics'][a]
+                col=plotCycle.next()
+#                print a,col,b.max(),b.min()
+                sns.set(context='poster', style='whitegrid', font='Arial', rc={'font.size': 14, 'axes.labelsize': 16, 'legend.fontsize': 14.0,'axes.titlesize': 12, 'xtick.labelsize': 20, 'ytick.labelsize': 18})
+                ax=b.plot(label=a,legend=False,figsize=(20,12),style=col,lw=7)
+                xlabels = ax.get_xticklabels()
+                ylabels = ax.get_yticklabels()
+                plt.savefig(inDirectory+'plots/'+source+'_'+a.replace('/','_')+'_'+chosenLanguage+'.png',dpi=60)
 #        print '\t',tS["webDir"]+'/charts/PLOT_'+chosenLanguage+'_'+a.replace('/','_')+'.png'
-            plt.cla();
+                plt.cla();
 
-    #####################
+        #####################
 # Plot sentiment
 
-    sentimentFig, ax = plt.subplots()
-    data['pos'].plot(label='Positive',legend=True, figsize=(14,8),lw=3)
-    (-1.0*data['neg']).plot(label='Negative',legend=True,lw=3)
-    ax.grid(color='lightgray', alpha=0.7)
-    xlabels = ax.get_xticklabels()
-    ylabels = ax.get_yticklabels()
-    mpld3.save_html(sentimentFig, inDirectory+'plots/PLOT_Sentiment_'+chosenLanguage+'.php', figid=chosenLanguage+"sentimentFig")
+        print source,'SENTIMENT'
+        
+        sentimentFig, ax = plt.subplots()
+        data[source]['pos'].plot(label='Positive',legend=True, figsize=(14,8),lw=3)
+        (-1.0*data[source]['neg']).plot(label='Negative',legend=True,lw=3)
+        ax.grid(color='lightgray', alpha=0.7)
+        xlabels = ax.get_xticklabels()
+        ylabels = ax.get_yticklabels()
+        mpld3.save_html(sentimentFig, inDirectory+'plots/'+source+'_sentiment_'+chosenLanguage+'.php', figid=chosenLanguage+"sentimentFig")
 
-    #######################
+        #######################
 # Plot top hashtags
+        try:
+            print source,'HASHTAGS'
+            
+            data[source]['hashtags']=sorted(data[source]['hashtags'].items(), key=operator.itemgetter(1))
 
-    data['hashtags']=sorted(data['hashtags'].items(), key=operator.itemgetter(1))
-
-    fig, ax = plt.subplots()
-    ax.barh(range(10),[v[1] for v in data['hashtags'][-10:]],log=False,linewidth=0,alpha=0.7,color="#00aeef")
-    ax.set_axis_bgcolor('#efefef')
+            fig, ax = plt.subplots()
+            ax.barh(range(10),[v[1] for v in data[source]['hashtags'][-10:]],log=False,linewidth=0,alpha=0.7,color="#00aeef")
+            ax.set_axis_bgcolor('#efefef')
 #ax.xaxis.set_major_formatter(formatter)
-    ax.xaxis.set_major_locator(plt.MaxNLocator(4))
-    ax.set_yticks([i+0.5 for i in range(10)])
-    ax.set_xlabel('Number of Tweets')
-    ax.set_yticklabels(['#'+v[0] for v in data['hashtags'][-10:]]);
-    plt.savefig(inDirectory+'plots/hashtags_'+chosenLanguage+'.png', bbox_inches='tight',dpi=200)
-
-    ##########################
+            ax.xaxis.set_major_locator(plt.MaxNLocator(4))
+            ax.set_yticks([i+0.5 for i in range(10)])
+            ax.set_xlabel('Number of Tweets')
+            ax.set_yticklabels(['#'+v[0] for v in data[source]['hashtags'][-10:]]);
+            plt.savefig(inDirectory+'plots/'+source+'_hashtags_'+chosenLanguage+'.png', bbox_inches='tight',dpi=200)
+        except:
+            print source,'HASHTAGS FAILED'
+        ##########################
 # plot top URLS
+        try:
+            print source,'DOMAINS'
+            
+            data[source]['domains']=sorted(data[source]['domains'].items(), key=operator.itemgetter(1))
+            fig, ax = plt.subplots()
+            ax.barh(range(10),[v[1] for v in data[source]['domains'][-10:]],log=False,linewidth=0,alpha=0.7,color="#00aeef")
+            ax.set_axis_bgcolor('#efefef')
+            ax.xaxis.set_major_formatter(formatter)
+            ax.xaxis.set_major_locator(plt.MaxNLocator(4))
+            ax.set_yticks([i+0.5 for i in range(10)])
+            ax.set_xlabel('Number of Tweets')
+            ax.set_yticklabels([v[0] for v in data[source]['domains'][-10:]]);
+            plt.savefig(inDirectory+'plots/'+source+'_domains_'+chosenLanguage+'.png', bbox_inches='tight',dpi=200)
+        except:
+            print 'DOMAINS FAILED',source
+        ###########################
+        # Plot top unigrams
+        print source,'UNIGRAMS'
+        
+        data[source]['unigrams']=sorted(data[source]['unigrams'].items(), key=operator.itemgetter(1))
+        
+        fig, ax = plt.subplots()
+        ax.barh(range(10),[v[1] for v in data[source]['unigrams'][-10:]],log=False,linewidth=0,alpha=0.7,color="#00aeef")
+        ax.set_axis_bgcolor('#efefef')
+        ax.xaxis.set_major_formatter(formatter)
+        ax.xaxis.set_major_locator(plt.MaxNLocator(4))
+        ax.set_yticks([i+0.5 for i in range(10)])
+        ax.set_xlabel('Number of Tweets')
+        ax.set_yticklabels([v[0].decode('utf-8') for v in data[source]['unigrams'][-10:]]);
+        plt.savefig(inDirectory+'plots/'+source+'_unigrams_'+chosenLanguage+'.png', bbox_inches='tight',dpi=200)
 
-    data['domains']=sorted(data['domains'].items(), key=operator.itemgetter(1))
-
-    fig, ax = plt.subplots()
-    ax.barh(range(10),[v[1] for v in data['domains'][-10:]],log=False,linewidth=0,alpha=0.7,color="#00aeef")
-    ax.set_axis_bgcolor('#efefef')
-    ax.xaxis.set_major_formatter(formatter)
-    ax.xaxis.set_major_locator(plt.MaxNLocator(4))
-    ax.set_yticks([i+0.5 for i in range(10)])
-    ax.set_xlabel('Number of Tweets')
-    ax.set_yticklabels([v[0] for v in data['domains'][-10:]]);
-    plt.savefig(inDirectory+'plots/hashtags_'+chosenLanguage+'.png', bbox_inches='tight',dpi=200)
-
-    ###########################
-    # Plot top unigrams
-    data['unigrams']=sorted(data['unigrams'].items(), key=operator.itemgetter(1))
-    
-    fig, ax = plt.subplots()
-    ax.barh(range(10),[v[1] for v in data['unigrams'][-10:]],log=False,linewidth=0,alpha=0.7,color="#00aeef")
-    ax.set_axis_bgcolor('#efefef')
-    ax.xaxis.set_major_formatter(formatter)
-    ax.xaxis.set_major_locator(plt.MaxNLocator(4))
-    ax.set_yticks([i+0.5 for i in range(10)])
-    ax.set_xlabel('Number of Tweets')
-    ax.set_yticklabels([v[0].decode('utf-8') for v in data['unigrams'][-10:]]);
-    plt.savefig(inDirectory+'plots/hashtags_'+chosenLanguage+'.png', bbox_inches='tight',dpi=200)
-
-    ###########################
+        ###########################
 #   Write top users
-    data['users']=sorted(data['users'].items(), key=operator.itemgetter(1))
+        print source,'USERS'
+        try:
+            data[source]['users']=sorted(data[source]['users'].items(), key=operator.itemgetter(1))
 
-    fig, ax = plt.subplots()
-    ax.barh(range(10),[v[1] for v in data['users'][-10:]],log=False,linewidth=0,alpha=0.7,color="#00aeef")
-    ax.set_axis_bgcolor('#efefef')
-    ax.xaxis.set_major_formatter(formatter)
-    ax.xaxis.set_major_locator(plt.MaxNLocator(4))
-    ax.set_yticks([i+0.5 for i in range(10)])
-    ax.set_xlabel('Number of Tweets')
-    ax.set_yticklabels(['@'+v[0] for v in data['users'][-10:]]);
-    plt.savefig(inDirectory+'plots/users_'+chosenLanguage+'.png', bbox_inches='tight',dpi=200)
-# TODO write these to file
+            fig, ax = plt.subplots()
+            ax.barh(range(10),[v[1] for v in data[source]['users'][-10:]],log=False,linewidth=0,alpha=0.7,color="#00aeef")
+            ax.set_axis_bgcolor('#efefef')
+            ax.xaxis.set_major_formatter(formatter)
+            ax.xaxis.set_major_locator(plt.MaxNLocator(4))
+            ax.set_yticks([i+0.5 for i in range(10)])
+            ax.set_xlabel('Number of Tweets')
+            ax.set_yticklabels(['@'+v[0] for v in data[source]['users'][-10:]]);
+            plt.savefig(inDirectory+'plots/'+source+'_users_'+chosenLanguage+'.png', bbox_inches='tight',dpi=200)
+            writeTop(data[source]['users'][-10:],inDirectory+'data/'+source+'_users_'+chosenLanguage+'.tsv')
+        except:
+            print source,'USERS FAILED'
 
-    writeTop(data['users'][-10:],inDirectory+'data/users_test.tsv')
-    
-    ##############################
+        ##############################
 # Write top mentions
 
-    data['mentions']=sorted(data['mentions'].items(), key=operator.itemgetter(1))
-    fig, ax = plt.subplots()
-    ax.barh(range(10),[v[1] for v in data['mentions'][-10:]],log=False,linewidth=0,alpha=0.7,color="#00aeef")
-    ax.set_axis_bgcolor('#efefef')
-    ax.xaxis.set_major_formatter(formatter)
-    ax.xaxis.set_major_locator(plt.MaxNLocator(4))
-    ax.set_yticks([i+0.5 for i in range(10)])
-    ax.set_xlabel('Number of Tweets')
-    ax.set_yticklabels(['@'+v[0] for v in data['mentions'][-10:]]);
-    plt.savefig(inDirectory+'plots/mentions_'+chosenLanguage+'.png', bbox_inches='tight',dpi=200)
-    writeTop(data['mentions'][-10:],inDirectory+'data/mentions_test.tsv')
+        print source,'MENTIONS'
+        try:        
+            data[source]['mentions']=sorted(data[source]['mentions'].items(), key=operator.itemgetter(1))
+            fig, ax = plt.subplots()
+            ax.barh(range(10),[v[1] for v in data[source]['mentions'][-10:]],log=False,linewidth=0,alpha=0.7,color="#00aeef")
+            ax.set_axis_bgcolor('#efefef')
+            ax.xaxis.set_major_formatter(formatter)
+            ax.xaxis.set_major_locator(plt.MaxNLocator(4))
+            ax.set_yticks([i+0.5 for i in range(10)])
+            ax.set_xlabel('Number of Tweets')
+            ax.set_yticklabels(['@'+v[0] for v in data[source]['mentions'][-10:]]);
+            plt.savefig(inDirectory+'plots/'+source+'_mentions_'+chosenLanguage+'.png', bbox_inches='tight',dpi=200)
+            writeTop(data[source]['mentions'][-10:],inDirectory+'data/'+source+'_mentions_'+chosenLanguage+'.tsv')
+        except:
+            print source,'MENTIONS FAILED'
 
-    ###################
+        ###################
 # Write top bigrams
-    data['bigrams']=sorted(data['bigrams'].items(), key=operator.itemgetter(1))
 
-    fig, ax = plt.subplots()
-    ax.barh(range(10),[v[1] for v in data['bigrams'][-10:]],log=False,linewidth=0,alpha=0.7,color="#00aeef")
-    ax.set_axis_bgcolor('#efefef')
-    ax.xaxis.set_major_formatter(formatter)
-    ax.xaxis.set_major_locator(plt.MaxNLocator(4))
-    ax.set_yticks([i+0.5 for i in range(10)])
-    ax.set_xlabel('Number of Tweets')
-    ax.set_yticklabels([v[0][0].decode('utf-8')+' '+v[0][1].decode('utf-8') for v in data['bigrams'][-10:]]);
-    plt.savefig(inDirectory+'plots/bigrams_'+chosenLanguage+'.png', bbox_inches='tight',dpi=200)
+        print source,'BIGRAMS'
+        
+        data[source]['bigrams']=sorted(data[source]['bigrams'].items(), key=operator.itemgetter(1))
 
-    ####################
+        fig, ax = plt.subplots()
+        ax.barh(range(10),[v[1] for v in data[source]['bigrams'][-10:]],log=False,linewidth=0,alpha=0.7,color="#00aeef")
+        ax.set_axis_bgcolor('#efefef')
+        ax.xaxis.set_major_formatter(formatter)
+        ax.xaxis.set_major_locator(plt.MaxNLocator(4))
+        ax.set_yticks([i+0.5 for i in range(10)])
+        ax.set_xlabel('Number of Tweets')
+        ax.set_yticklabels([v[0][0].decode('utf-8')+' '+v[0][1].decode('utf-8') for v in data[source]['bigrams'][-10:]]);
+        plt.savefig(inDirectory+'plots/'+source+'_bigrams_'+chosenLanguage+'.png', bbox_inches='tight',dpi=200)
+
+        ####################
 # Write top trigrams
 
-    data['trigrams']=sorted(data['trigrams'].items(), key=operator.itemgetter(1))
-    
-    fig, ax = plt.subplots()
-    ax.barh(range(10),[v[1] for v in data['trigrams'][-10:]],log=False,linewidth=0,alpha=0.7,color="#00aeef")
-    ax.set_axis_bgcolor('#efefef')
-    ax.xaxis.set_major_formatter(formatter)
-    ax.xaxis.set_major_locator(plt.MaxNLocator(4))
-    ax.set_yticks([i+0.5 for i in range(10)])
-    ax.set_xlabel('Number of Tweets')
-    ax.set_yticklabels([v[0][0].decode('utf-8')+' '+v[0][1].decode('utf-8')+' '+v[0][2].decode('utf-8') for v in data['trigrams'][-10:]]);
-    plt.savefig(inDirectory+'plots/trigrams_'+chosenLanguage+'.png', bbox_inches='tight',dpi=200)
-
+        print source,'TRIGRAMS'
+        
+        data[source]['trigrams']=sorted(data[source]['trigrams'].items(), key=operator.itemgetter(1))
+        
+        fig, ax = plt.subplots()
+        ax.barh(range(10),[v[1] for v in data[source]['trigrams'][-10:]],log=False,linewidth=0,alpha=0.7,color="#00aeef")
+        ax.set_axis_bgcolor('#efefef')
+        ax.xaxis.set_major_formatter(formatter)
+        ax.xaxis.set_major_locator(plt.MaxNLocator(4))
+        ax.set_yticks([i+0.5 for i in range(10)])
+        ax.set_xlabel('Number of Tweets')
+        ax.set_yticklabels([v[0][0].decode('utf-8')+' '+v[0][1].decode('utf-8')+' '+v[0][2].decode('utf-8') for v in data[source]['trigrams'][-10:]]);
+        plt.savefig(inDirectory+'plots/'+source+'_trigrams_'+chosenLanguage+'.png', bbox_inches='tight',dpi=200)
+    print '--------'
 if __name__=='__main__':
     main()

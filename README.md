@@ -13,7 +13,7 @@ Looks through daily files produced as output from ```process_ds_files.py``` and 
 Reads in serialised data from ```counters.dat``` and produces plots interatively
 
 5. ```make_plots.py```
-Reads in serialised data from ```counters.dat``` and produces plots and data files for web pages
+Reads in serialised data from ```counters.dat``` and produces plots and data files for web pages. Pass in directory with pickle file with ```-d <dataDirectory>```
 
 #Usage
 * Location of data specified by ```dataDirectory``` and set with ```-d``` flag. If several corpora exist (typically corresponding to different languages) then invoke separately for each one (only overhead for running multiple times is parsing of geolocation world pickle file).  All files of matching ```DataSift*json``` within these directories and its subdirectories will be considered. This produces all output files in ```dataDirectory```.
