@@ -18,7 +18,7 @@ import datetime,dateutil.parser
 import traceback
 import pandas as pd
 from nltk import bigrams,trigrams
-import langid
+import langid,itertools
 
 geo=geolocator.Geolocator()
 geo.init()
@@ -30,6 +30,8 @@ dateFileFormat='/[0-9][0-9][0-9][0-9]_*[0-9][0-9]_[0-9][0-9].json'
 
 nDuplicates=0
 # Make this global
+
+fileCounter=0
 
 r=True
 r=False
@@ -96,7 +98,7 @@ def fileStream(l):
     for root,dirs,files in os.walk(l):
     # Recursively looks through language directories 
     # in root data directory to find all DatSift files
-        if len(files)>0:
+        if len(files)>0 and re.search(r'2014-08',root):
         # Find all files
 #                print root,dirs,files
             for f in files:
@@ -330,6 +332,10 @@ def processFile(l,f,dateFileHash,counterDict,cartoFile,deletionsFile,dcFile):
                 '''Topics'''
                 try:
                     tweetTopics=message['interaction']['tag_tree']['topic']
+
+                    if len(tweetTopics)>1:
+                        for c in itertools.combinations(tweetTopics,2):
+                            counterDict['tw']['topic_coloc'][c]+=1
                     for t in tweetTopics:
                         twContent.append(tweetContent)
                         twTopicTimes.append(tweetTime)
@@ -345,11 +351,11 @@ def processFile(l,f,dateFileHash,counterDict,cartoFile,deletionsFile,dcFile):
                     toks=tweetContent.lower().split(' ')
                     for w in [t for t in toks if not t in stopWords]:
                         counterDict['tw']['unigrams'][w]+=1
-                    for b in bigrams(toks):
-                        counterDict['tw']['bigrams'][b]+=1
-                    for t in trigrams(toks):
-                        counterDict['tw']['trigrams'][t]+=1
-
+#                    for b in bigrams(toks):
+#                        counterDict['tw']['bigrams'][b]+=1
+#                    for t in trigrams(toks):
+#                        counterDict['tw']['trigrams'][t]+=1
+                     # TODO figure out how to make this memory efficient
                 ###############################################   
                 '''Write tweet to file'''
                 if not tweetTime==None:
@@ -479,10 +485,13 @@ def processFile(l,f,dateFileHash,counterDict,cartoFile,deletionsFile,dcFile):
                     toks=fbContent.lower().split(' ')
                     for w in [t for t in toks if not t in stopWords]:
                         counterDict['fb']['unigrams'][w]+=1
-                    for b in bigrams(toks):
-                        counterDict['fb']['bigrams'][b]+=1
-                    for t in trigrams(toks):
-                        counterDict['fb']['trigrams'][t]+=1
+#                    for b in bigrams(toks):
+#                        counterDict['fb']['bigrams'][b]+=1
+#                    for t in trigrams(toks):
+#                        counterDict['fb']['trigrams'][t]+=1
+                    # This is exploding in memory
+                    # TODO find better way to store, DB?
+
                 ###############################################   
                 '''Write FB message to file'''
                 if not fbTime==None:
@@ -587,6 +596,7 @@ def processFile(l,f,dateFileHash,counterDict,cartoFile,deletionsFile,dcFile):
 #############
 def writeCounters(l,counterDict):
 #############
+    v=True
     '''Overwrites old pickle file, having read in any previous counter pickle file'''
     if v:print '\tWRITING PICKLE FILES'
 
@@ -595,7 +605,9 @@ def writeCounters(l,counterDict):
     except:
         if v:print 'NO OLD PICKLE FILE TO REMOVE'
     outFile=open(l+counterFileName,'w')
-   
+    
+    for k,value in counterDict.items():print k,sys.getsizeof(value)
+         
     pickle.dump(counterDict,outFile,2)
     
     outFile.close()
@@ -637,7 +649,7 @@ def initCounters(l):
         inFile=open(l+counterFileName,'r')
         
         data=pickle.load(inFile)
-        
+        twTopicColocCounter=data['tw']['topic_coloc']        
         twTopicCountryCounter=data['tw']['topicCountry']        
         twGenderTopicCounter=data['tw']['genderTopic']        
         twUserCounter=data['tw']['users']
@@ -702,6 +714,7 @@ def initCounters(l):
         fbLanguageCounter=collections.defaultdict(int)
         fbDomainCounter=collections.defaultdict(int)
 
+        twTopicColocCounter=collections.defaultdict(int)
         twHashTagCounter=collections.defaultdict(int)
         twDomainCounter=collections.defaultdict(int)
         twRawDomainCounter=collections.defaultdict(int)
@@ -722,6 +735,7 @@ def initCounters(l):
         
         dsFileSet=Set()
 
+    counterDict['tw']['topic_coloc']=twTopicColocCounter
     counterDict['tw']['hashtags']=twHashTagCounter
     counterDict['tw']['domains']=twDomainCounter
     counterDict['tw']['rawdomains']=twRawDomainCounter
@@ -775,6 +789,8 @@ def main():
     nFacebook=0
     # Count number of FB posts
 
+    fileCounter=0
+
     idSet=Set()
     # This is a set that hlds all tweet ids, to ensure duplicates are removed
     # New set for each language (assumes langages will have separate DS streams)
@@ -805,11 +821,22 @@ def main():
         print d
     # Create a dictionary, key is date file name
     # value is file opened for appending
-
+    '''
+    for root,dirs,files in os.walk(l):
+        if len(files)>0:
+            print '\t',root,dirs,len(files)
+    print '-------------'
+    time.sleep(99999)
+    '''
     for f in fileStream(l):
         if not f in dsFileSet:
-            if v:print '\tPROCESSING',f
-
+            if v:print '\tPROCESSING',fileCounter,f
+            if False:
+                for kk in ['fb','tw']:
+                    print kk
+                    for kkk,vvv in counterDict[kk].items():
+                        print '\t',kkk,sys.getsizeof(vvv)
+                print 'ds',sys.getsizeof(counterDict['ds'])
             counterDict,dateFileHash,nFileDuplicates,nFile,nFileDeletes,nUserError,nFileFacebook=processFile(l,f,dateFileHash,counterDict,cartoFile,deletionsFile,dcFile) 
             # Read file and process line by line
             # Update hash of daily files in case new ones are created
@@ -818,6 +845,7 @@ def main():
             nDeletes+=nFileDeletes
             nFacebook+=nFileFacebook
             dsFileSet.add(f)
+            fileCounter+=1
         else:
             if v:print '\tSKIPPING DUPLICATE',f 
             nSkippedFiles+=1

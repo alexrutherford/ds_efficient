@@ -44,3 +44,6 @@ Reads in serialised data from ```counters.dat``` and produces plots and data fil
 
 * Find a more consistent way to count over topics (and sub topics)
 * Add in gender time series for each topic
+* Count ngram time series in a separate process
+* Convert topic counting (amd resampling) to using temp Series not DataFrame
+* Convert topic collocations to time series rather than counts
