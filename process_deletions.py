@@ -37,6 +37,13 @@ if '-c' in sys.argv:
 
 languageDirectory='../data_test/english/'
 
+######################
+if '-d' in sys.argv:
+    # Flag for filtering by country
+    i=(sys.argv).index('-d')
+    languageDirectory=sys.argv[i+1]
+    print 'SET LANGUAGE DIRECTORY',languageDirectory
+
 deletionsFile=csv.reader(open(languageDirectory+'/'+'deletions.csv','r'),delimiter='\t')
 
 ############
@@ -53,31 +60,34 @@ def overWriteDailyFiles():
 ############
 def updateSets(old,new):
 ############
-    return old['ids']-new['ids']
+    return old['ds']-new['ds']
 ############
 def updateData(old,new):
 ############
-    for k in ['hashtags','mentions','users','domains','unigrams','bigrams','trigrams']:
-    # Leave out unigrams/bigrams/trigrams for now
-    # Counters
-        print 'UPDATING',k,len(new[k].keys())
-        for kk in new[k].keys():
-            try:
-                old[k][kk]-=new[k][kk]
-            except:
-                print 'ERROR',k,kk,new[k][kk]
-            # This shouldn't ever happen
-    old['ids']-=new['ids']
-    # Id set
-    for k in ['time','pos','neg']:
-    # Update sereis
-        print 'UPDATING',k
-        old[k]=old[k].subtract(new[k],fill_value=0)
+    for s in ['tw']:
+# For now only have to consider TW deletions
+        print 'UPDATING',s
+        for k in ['hashtags','mentions','users','domains','unigrams','bigrams','trigrams']:
+        # Leave out unigrams/bigrams/trigrams for now
+        # Counters
+            print '\tUPDATING',k,len(new[s][k].keys())
+            for kk in new[s][k].keys():
+                try:
+                    old[s][k][kk]-=new[s][k][kk]
+                except:
+                    print 'ERROR',k,kk,new[s][k][kk]
+                # This shouldn't ever happen
+        for k in ['time','pos','neg']:
+        # Update series
+            print '\tUPDATING',k
+            old[s][k]=old[s][k].subtract(new[s][k],fill_value=0)
 
-    for t in new['topicCountry'].keys():
-        for c in new['topicCountry'][t].keys():
-            old['topicCountry'][t][c]-=new['topicCountry'][t][c]
-    # Topics by country
+        for t in new[s]['topicCountry'].keys():
+            for c in new[s]['topicCountry'][t].keys():
+                old[s]['topicCountry'][t][c]-=new[s]['topicCountry'][t][c]
+        # Topics by country
+    old['ds']-=new['ds']
+    # Id set
 
     return old
 ############
@@ -98,7 +108,7 @@ def getOldData(l):
     Read in old serialsied file and return dictionary
     '''
     print 'READING OLD DATA'
-    dataFile=open(l+'/counters.dat','r')
+    dataFile=open(l+'/counters_.dat','r')
     if chosenCountry:     
         dataFile=open(l+'/counters_'+chosenCountry+'.dat','r')
     d=pickle.load(dataFile)
@@ -110,6 +120,10 @@ def countDuplicate(tweet,times,positives,negatives,topicTimes,topics,counterDict
     '''
     Take tweet, count mentions, hashtag etc and add to temporary list
     '''
+
+    s='tw'
+    # Hardcode this for now, but deletions should always be TW
+
     ###############################################   
     '''Geolocation'''
     inCountry=False
@@ -143,7 +157,7 @@ def countDuplicate(tweet,times,positives,negatives,topicTimes,topics,counterDict
     try:
         if inCountry:
             for h in tweet['interaction']['hashtags']:
-                counterDict['hashtags'][h.lower()]+=1   
+                counterDict[s]['hashtags'][h.lower()]+=1   
     except:
         pass
     ###############################################   
@@ -151,7 +165,7 @@ def countDuplicate(tweet,times,positives,negatives,topicTimes,topics,counterDict
     try:
         if inCountry:
             for m in tweet['twitter']['mentions']:
-                counterDict['mentions'][m.lower()]+=1 
+                counterDict[s]['mentions'][m.lower()]+=1 
     except:
         pass
     ###############################################   
@@ -166,13 +180,13 @@ def countDuplicate(tweet,times,positives,negatives,topicTimes,topics,counterDict
             pass
     if twitterUser: 
         if inCountry:
-            counterDict['users'][twitterUser]+=1 
+            counterDict[s]['users'][twitterUser]+=1 
     ###############################################   
     '''Domains'''
     try:
         if inCountry:
             for d in tweet['links']['domain']:
-                counterDict['domains'][d]+=1 
+                counterDict[s]['domains'][d]+=1 
     except:
         pass
     ###############################################   
@@ -193,8 +207,8 @@ def countDuplicate(tweet,times,positives,negatives,topicTimes,topics,counterDict
         tweetTopics=tweet['interaction']['tag_tree']['topic']
         for t in tweetTopics:
             if not t in counterDict['topicCountry'].keys():
-                counterDict['topicCountry'][t]=collections.defaultdict(int)
-                counterDict['topicCountry'][t][loc[0][3]]+=1
+                counterDict[s]['topicCountry'][t]=collections.defaultdict(int)
+                counterDict[s]['topicCountry'][t][loc[0][3]]+=1
     except:
         pass
     ####################################   
@@ -202,11 +216,11 @@ def countDuplicate(tweet,times,positives,negatives,topicTimes,topics,counterDict
     if tweetTime and inCountry:
         toks=tweetContent.lower().split(' ')
         for w in [t for t in toks if not t in stopWords]:
-            counterDict['unigrams'][w]+=1
+            counterDict[s]['unigrams'][w]+=1
         for b in bigrams(toks):
-            counterDict['bigrams'][b]+=1
+            counterDict[s]['bigrams'][b]+=1
         for t in trigrams(toks):
-            counterDict['trigrams'][t]+=1
+            counterDict[s]['trigrams'][t]+=1
     ####################################   
     '''Sentiment'''
     if tweetTime and inCountry:
@@ -242,18 +256,18 @@ def main():
     # As deletions most likely to be recent
 
     '''Make fresh counter'''
-    counterDict={}
-    counterDict['hashtags']=collections.defaultdict(int)
-    counterDict['users']=collections.defaultdict(int)
-    counterDict['domains']=collections.defaultdict(int)
-    counterDict['rawdomains']=collections.defaultdict(int)
-    counterDict['mentions']=collections.defaultdict(int)
-    counterDict['unigrams']=collections.defaultdict(int)
-    counterDict['bigrams']=collections.defaultdict(int)
-    counterDict['trigrams']=collections.defaultdict(int)
-    counterDict['ids']=Set()
-    counterDict['topics']={}
-    counterDict['topicCountry']={}
+    counterDict={'tw':{},'fb':{}}
+    counterDict['tw']['hashtags']=collections.defaultdict(int)
+    counterDict['tw']['users']=collections.defaultdict(int)
+    counterDict['tw']['domains']=collections.defaultdict(int)
+    counterDict['tw']['rawdomains']=collections.defaultdict(int)
+    counterDict['tw']['mentions']=collections.defaultdict(int)
+    counterDict['tw']['unigrams']=collections.defaultdict(int)
+    counterDict['tw']['bigrams']=collections.defaultdict(int)
+    counterDict['tw']['trigrams']=collections.defaultdict(int)
+    counterDict['ds']=Set()
+    counterDict['tw']['topics']={}
+    counterDict['tw']['topicCountry']={}
 
     times=[]
     positives=[]
@@ -281,6 +295,9 @@ def main():
         # Read file as one long string and convert to unicode
         
         nLine=0
+               
+        s='tw'
+        # Hardcode for now, probably deletions will always only be Twitter
                 
         for tweet in fileString.split('\n')[0:-1]:
             try:
@@ -310,7 +327,7 @@ def main():
                    
                     deletions.remove(tweetId)
                   
-                    counterDict['ids'].add(tweetId)
+                    counterDict['ds'].add(tweetId)
                     
                     times,positives,negatives,topicTimes,topics,counterDict,content=countDuplicate(tweet,times,positives,negatives,topicTimes,topics,counterDict,content)
                     
@@ -350,19 +367,19 @@ def main():
         # Group dataframe by topics
 
         for topic,topicDf in topicGroups:
-            if not topic in counterDict['topics'].keys():
-                counterDict['topics'][topic]=topicDf.resample('D',how='count')['content']
+            if not topic in counterDict[s]['topics'].keys():
+                counterDict[s]['topics'][topic]=topicDf.resample('D',how='count')['content']
                 # First time through, add downsampled series
             else:
-                counterDict['topics'][topic]=counterDict['topics'][topic].add(topicDf.resample('D',how='count')['content'],fill_value=0)
+                counterDict[s]['topics'][topic]=counterDict[s]['topics'][topic].add(topicDf.resample('D',how='count')['content'],fill_value=0)
                 # Then add series from each new file to running total
                 # If time ranges don't overlap explicitly add a zero
                 totalDf=pd.concat([tdf for t,tdf in topicGroups])
     ''' Total'''
     tempDf=pd.DataFrame(data={'time':times,'pos':positives,'neg':negatives},index=times)
-    counterDict['time']=tempDf.resample('D',how='count')['time']
-    counterDict['pos']=tempDf.resample('D',how='sum')['pos']
-    counterDict['neg']=tempDf.resample('D',how='sum')['neg']
+    counterDict[s]['time']=tempDf.resample('D',how='count')['time']
+    counterDict[s]['pos']=tempDf.resample('D',how='sum')['pos']
+    counterDict[s]['neg']=tempDf.resample('D',how='sum')['neg']
 
     oldData=getOldData(languageDirectory)
     newData=updateData(oldData,counterDict)
