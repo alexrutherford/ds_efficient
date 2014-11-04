@@ -67,7 +67,7 @@ def updateData(old,new):
     for s in ['tw']:
 # For now only have to consider TW deletions
         print 'UPDATING',s
-        for k in ['hashtags','mentions','users','domains','unigrams','bigrams','trigrams']:
+        for k in ['hashtags','mentions','users','domains','unigrams']:#,'bigrams','trigrams']:
         # Leave out unigrams/bigrams/trigrams for now
         # Counters
             print '\tUPDATING',k,len(new[s][k].keys())
