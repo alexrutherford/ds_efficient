@@ -51,9 +51,19 @@ if '-c' in sys.argv:
     # <pobably corresponds to language>
     time.sleep(1)
 
+topicHack=False
+
+if '-h' in sys.argv:
+    # Flag for hacking topics in case of Brazil i.e. 'discrimination positive' => 'discrimination'
+    topicHack=True
+    i=(sys.argv).index('-h')
+    print 'SET TOPIC HACK'
+    time.sleep(1)
+
 v=True
 #v=False
 # Verbose flag
+
 if '-d' in sys.argv:
     # Flag for filtering by country
     i=(sys.argv).index('-d')
@@ -73,7 +83,7 @@ if '-C' in sys.argv:
     # If a flag used to filter by country
     # need to change the format of daily files
     
-counterFileName='/counters_.dat'
+counterFileName='/counters.dat'
 cartoFileName='/carto.txt'
 
 if chosenCountry:
@@ -96,11 +106,12 @@ def fileStream(l):
     Generator returning files in subdirectories of root directory l
     '''
     for root,dirs,files in os.walk(l):
+        print root
     # Recursively looks through language directories 
     # in root data directory to find all DatSift files
-        if len(files)>0 and re.search(r'2014-08',root):
+        if len(files)>0 and re.search(r'2014-[0-9][0-9]',root):
         # Find all files
-#                print root,dirs,files
+#            print root,dirs,files
             for f in files:
                 if re.match(r'DataSift',f):
                 # Check that they are actual datasift files
@@ -143,6 +154,8 @@ def processFile(l,f,dateFileHash,counterDict,cartoFile,deletionsFile,dcFile):
     fbTimes=[]
     fbPositives=[]
     fbNegatives=[]
+    fbTopicTimes=[]
+    fbTopics=[]
 
     fileHandle=open(f,'r')
     fileString=fileHandle.read().decode('utf-8')
@@ -150,16 +163,18 @@ def processFile(l,f,dateFileHash,counterDict,cartoFile,deletionsFile,dcFile):
     for line in fileString.split('\n'):
 
         message=json.loads(line)
-
         chosenTopic=None
         ###########
         '''choose a topic here '''
         try:
-#            messageTopics=message['interaction']['tag_tree']['topic'].items()
-            # This is currently over-engineered to Brazil case
-            # which has topics and subtopics
+            messageTopics=message['interaction']['tag_tree']['topic'].items()
+            if topicHack:
+#                messageTopics=[m[0]+' '+m[1][0] for m in messageTopics]
+                messageTopics=[m[0] for m in messageTopics]
+            # We need this for Brazil; topics and sub-topics
 
-            messageTopics=message['interaction']['tag_tree']['topic']
+            messageTopics=[m.lower() for m in messageTopics]
+
             
             if len(messageTopics)==1:
 #                chosenTopic=messageTopics[0][0]+'_'+messageTopics[0][1][0]
@@ -167,6 +182,9 @@ def processFile(l,f,dateFileHash,counterDict,cartoFile,deletionsFile,dcFile):
             else:
                 chosenTopic=random.choice(messageTopics)
 #                chosenTopic=chosenTopic[0]+'_'+chosenTopic[1][0]
+            if topicHack:
+                chosenTopic=chosenTopic.partition(' ')[0]
+
         except:
             nTopicError+=1
         ##############
@@ -223,10 +241,12 @@ def processFile(l,f,dateFileHash,counterDict,cartoFile,deletionsFile,dcFile):
                 '''Topics by country'''
                 try:
                     tweetTopics=message['interaction']['tag_tree']['topic']
-                    for t in tweetTopics:
-                        if not t in counterDict['tw']['topicCountry'].keys():
-                            counterDict['tw']['topicCountry'][t]=collections.defaultdict(int)
-                        counterDict['tw']['topicCountry'][t][loc[0][3]]+=1
+                    tweetTopics=messageTopics
+                    if inCountry:
+                        for t in tweetTopics:
+                            if not t in counterDict['tw']['topicCountry'].keys():
+                                counterDict['tw']['topicCountry'][t]=collections.defaultdict(int)
+                            counterDict['tw']['topicCountry'][t][loc[0][3]]+=1
                 except:
 #                    print traceback.print_exc()
                     pass
@@ -299,22 +319,17 @@ def processFile(l,f,dateFileHash,counterDict,cartoFile,deletionsFile,dcFile):
                 ###############################################   
                 '''Gender'''
                 try:
-                    g=genderClassifier.gender(message['interaction']['author']['name'])
-                    g=g.values()[0]['gender']
-                    message['ungp']['gender']=g
-                    if chosenTopic in counterDict['tw']['genderTopic'].keys():
-                        counterDict['tw']['genderTopic'][chosenTopic][g]+=1
-                    else:
-                        counterDict['tw']['genderTopic'][chosenTopic]=collections.defaultdict(int)
-                        counterDict['tw']['genderTopic'][chosenTopic][g]+=1
+                    if inCountry:
+                        g=genderClassifier.gender(message['interaction']['author']['name'])
+                        g=g.values()[0]['gender']
+                        message['ungp']['gender']=g
+                        if chosenTopic in counterDict['tw']['genderTopic'].keys():
+                            counterDict['tw']['genderTopic'][chosenTopic][g]+=1
+                        else:
+                            counterDict['tw']['genderTopic'][chosenTopic]=collections.defaultdict(int)
+                            counterDict['tw']['genderTopic'][chosenTopic][g]+=1
                 except:
                     nGenderError+=1
-#                    print traceback.print_exc()
-#                    print 'chosen',chosenTopic
-#                    print 'g',g
-#                    print type(counterDict['tw']),type(counterDict['tw']['genderTopic']),type(counterDict['tw']['genderTopic'][chosenTopic])
-#                    print message
-#                    time.sleep(999999)
                 ###############################################   
                 '''Sentiment'''
                 if tweetTime and inCountry:
@@ -331,17 +346,17 @@ def processFile(l,f,dateFileHash,counterDict,cartoFile,deletionsFile,dcFile):
                 ####################################   
                 '''Topics'''
                 try:
-                    tweetTopics=message['interaction']['tag_tree']['topic']
-
-                    if len(tweetTopics)>1:
-                        for c in itertools.combinations(tweetTopics,2):
-                            counterDict['tw']['topic_coloc'][c]+=1
-                    for t in tweetTopics:
-                        twContent.append(tweetContent)
-                        twTopicTimes.append(tweetTime)
-                        twTopics.append(t)
-                        # Need this to count over topics
-                        # TODO Can this be improved
+                    tweetTopics=messageTopics
+                    if inCountry:
+                        if len(tweetTopics)>1:
+                            for c in itertools.combinations(tweetTopics,2):
+                                counterDict['tw']['topic_coloc'][c]+=1
+                        for t in tweetTopics:
+                            twContent.append(tweetContent)
+                            twTopicTimes.append(tweetTime)
+                            twTopics.append(t)
+                            # Need this to count over topics
+                            # TODO Can this be improved
                 except:
 #                    print traceback.print_exc()
                     nTopicError+=1
@@ -375,7 +390,7 @@ def processFile(l,f,dateFileHash,counterDict,cartoFile,deletionsFile,dcFile):
         elif 'facebook' in message.keys():
         ###################################
             fbTime=None
-            
+             
             try:
                 fbContent=message['interaction']['content'].encode('utf-8')
                 fbContent=re.sub(cleanRe,' ',fbContent)
@@ -402,13 +417,16 @@ def processFile(l,f,dateFileHash,counterDict,cartoFile,deletionsFile,dcFile):
                 ###############################################   
                 '''Topics by country'''
                 try:
-                    fbTopics=message['interaction']['tag_tree']['topic']
-                    for t in fbTopics:
-                        if not t in counterDict['fb']['topicCountry'].keys():
-                            counterDict['fb']['topicCountry'][t]=collections.defaultdict(int)
-                        counterDict['fb']['topicCountry'][t][loc[0][3]]+=1
+#                    fbTopics=message['interaction']['tag_tree']['topic']
+                    facebookTopics=messageTopics
+                    if inCountry:
+                        for t in fbTopics:
+                            if not t in counterDict['fb']['topicCountry'].keys():
+                                counterDict['fb']['topicCountry'][t]=collections.defaultdict(int)
+                            counterDict['fb']['topicCountry'][t][loc[0][3]]+=1
                 except:
                     pass
+                    
                 ###############################################   
                 try:
                     fbTime=dateutil.parser.parse(message['interaction']['created_at'])
@@ -416,6 +434,7 @@ def processFile(l,f,dateFileHash,counterDict,cartoFile,deletionsFile,dcFile):
                 except:
                     nFbTimeError+=1
                     fbTime=None
+#                    print 'TIME',traceback.print_exc()
                 ###############################################   
                 '''Carto'''
                 try:
@@ -469,15 +488,17 @@ def processFile(l,f,dateFileHash,counterDict,cartoFile,deletionsFile,dcFile):
                 ###############################################   
                 '''Topics'''
                 try:
-                    fbTopics=message['interaction']['tag_tree']['topic']
-                    for t in fbTopics:
-                        fbContent.append(fbContent)
-                        fbTopicTimes.append(fbTime)
-                        fbTopics.append(t)
+                    facebookTopics=messageTopics
+                    if inCountry:
+                        for t in facebookTopics:
+#                            fbContent.append(fbContent)
+                            fbTopicTimes.append(fbTime)
+                            fbTopics.append(t)
                         # Need this to count over topics
                         # TODO Can this be improved
                 except:
-#                    print traceback.print_exc()
+                    print 'FAILED',len(facebookTopics)
+                    print traceback.print_exc()
                     nTopicError+=1
                 ###############################################   
                 '''N-grams'''
@@ -528,7 +549,8 @@ def processFile(l,f,dateFileHash,counterDict,cartoFile,deletionsFile,dcFile):
     '''Now aggregate'''  
     '''tw'''
     '''topics'''
-    tempTopicDf=pd.DataFrame(data={'topics':twTopics,'content':twContent},index=twTopicTimes)
+#    tempTopicDf=pd.DataFrame(data={'topics':twTopics,'content':twContent},index=twTopicTimes)
+    tempTopicDf=pd.DataFrame(data={'topics':twTopics,'content':1},index=twTopicTimes)
     # Make a dataframe with contents of this file
     if len(twTopics)>0:
     # Only aggregate topics if some tweets were tagged with topics
@@ -540,6 +562,7 @@ def processFile(l,f,dateFileHash,counterDict,cartoFile,deletionsFile,dcFile):
                 counterDict['tw']['topics'][topic]=topicDf.resample('D',how='count')['content']
                 # First time through, add downsampled series
             else:
+#                print type(counterDict['tw']['topics'][topic]),type(counterDict['tw']['topics']),topic
                 counterDict['tw']['topics'][topic]=counterDict['tw']['topics'][topic].add(topicDf.resample('D',how='count')['content'],fill_value=0)
                 # Then add series from each new file to running total
                 # If time ranges don't overlap explicitly add a zero
@@ -561,6 +584,24 @@ def processFile(l,f,dateFileHash,counterDict,cartoFile,deletionsFile,dcFile):
     
     ''' facebook'''
     '''topics'''
+    tempTopicDf=pd.DataFrame(data={'topics':fbTopics,'content':1},index=fbTopicTimes)
+    # Make a dataframe with contents of this file
+    if len(fbTopics)>0:
+    # Only aggregate topics if some tweets were tagged with topics
+        topicGroups=tempTopicDf.groupby(fbTopics)
+        # Group dataframe by topics
+
+        for topic,topicDf in topicGroups:
+            if not topic in counterDict['fb']['topics'].keys():
+                counterDict['fb']['topics'][topic]=topicDf.resample('D',how='count')['content']
+                # First time through, add downsampled series
+            else:
+#                print type(counterDict['tw']['topics'][topic]),type(counterDict['tw']['topics']),topic
+                counterDict['fb']['topics'][topic]=counterDict['fb']['topics'][topic].add(topicDf.resample('D',how='count')['content'],fill_value=0)
+                # Then add series from each new file to running total
+                # If time ranges don't overlap explicitly add a zero
+                totalDf=pd.concat([tdf for t,tdf in topicGroups])
+
     '''sentiments'''
 #    print 'times,pos,neg'
 #    print len(fbTimes),len(fbPositives),len(fbNegatives)
@@ -649,6 +690,7 @@ def initCounters(l):
         inFile=open(l+counterFileName,'r')
         
         data=pickle.load(inFile)
+        twTopicSums=data['tw']['topic_sums']
         twTopicColocCounter=data['tw']['topic_coloc']        
         twTopicCountryCounter=data['tw']['topicCountry']        
         twGenderTopicCounter=data['tw']['genderTopic']        
@@ -680,6 +722,7 @@ def initCounters(l):
         fbDomainCounter=data['fb']['domains']
         fbTopicCountryCounter=data['fb']['topicCountry']        
         fbGenderTopicCounter=data['fb']['genderTopic']        
+        fbTopicSums=data['fb']['topic_sums']
         
         dsFileSet=data['ds']
 
@@ -688,12 +731,13 @@ def initCounters(l):
     else:
         print 'DIDNT FIND OLD PICKLE FILE'
         print 'ATTEMPTING TO CLEAN OLD DAILY FILES'
-        print l
-        print cartoFileName
-        time.sleep(3)
-
+        
+        nRemoved=0        
         for f in glob.glob(l+dateFileFormat):
             os.remove(f)
+            nRemoved+=1
+        print 'REMOVED',nRemoved
+        time.sleep(3)
        
         try:
             os.remove(l+cartoFileName)
@@ -707,6 +751,7 @@ def initCounters(l):
         fbTopicCounter={}
         fbTopicCountryCounter={}
         fbGenderTopicCounter={}
+        fbTopicSums=collections.defaultdict(int)
         fbUnigramCounter=collections.defaultdict(int)
         fbBigramCounter=collections.defaultdict(int)
         fbTrigramCounter=collections.defaultdict(int)
@@ -724,6 +769,7 @@ def initCounters(l):
         twTrigramCounter=collections.defaultdict(int)
         twUserCounter=collections.defaultdict(int)
         twLanguageCounter=collections.defaultdict(int)
+        twTopicSums=collections.defaultdict(int)
         twTopicCounter={}
         twTopicCountryCounter={}
         twGenderTopicCounter={}
@@ -735,6 +781,7 @@ def initCounters(l):
         
         dsFileSet=Set()
 
+    counterDict['tw']['topic_sums']=twTopicSums
     counterDict['tw']['topic_coloc']=twTopicColocCounter
     counterDict['tw']['hashtags']=twHashTagCounter
     counterDict['tw']['domains']=twDomainCounter
@@ -758,6 +805,7 @@ def initCounters(l):
     counterDict['fb']['neg']=fbNegSeries
     counterDict['fb']['ids']=fbIdSet
     counterDict['fb']['topics']=fbTopicCounter
+    counterDict['fb']['topic_sums']=fbTopicSums
     counterDict['fb']['unigrams']=fbUnigramCounter
     counterDict['fb']['bigrams']=fbBigramCounter
     counterDict['fb']['trigrams']=fbTrigramCounter
@@ -840,6 +888,7 @@ def main():
             counterDict,dateFileHash,nFileDuplicates,nFile,nFileDeletes,nUserError,nFileFacebook=processFile(l,f,dateFileHash,counterDict,cartoFile,deletionsFile,dcFile) 
             # Read file and process line by line
             # Update hash of daily files in case new ones are created
+            
             nDuplicates+=nFileDuplicates
             nTotal+=nFile
             nDeletes+=nFileDeletes
@@ -852,6 +901,12 @@ def main():
 #        counterDict['fb']['ids']=fbIdSet
 #        counterDict['tw']['ids']=twIdSet
     counterDict['ds']=dsFileSet
+    
+    for kk,vv in counterDict['tw']['topics'].items():
+        counterDict['tw']['topic_sums'][kk]=vv.sum()
+    for kk,vv in counterDict['fb']['topics'].items():
+        counterDict['fb']['topic_sums'][kk]=vv.sum()
+    # Sum topic volumes
 
     writeCounters(l,counterDict)
     # Persist counters to pickle file

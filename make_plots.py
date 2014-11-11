@@ -24,10 +24,11 @@ formatter.set_scientific(False)
 
 import itertools
 plotColours=['#1B6E44','#6D1431','#FF5500','#5D6263','#009D97','#c84699','#71be45','#3F8CBC','#FFC200']
-plotCycle=itertools.cycle(plotColours)
+# Currently have 9 nice colours, colours will be repeated if more than 9 topics
 
 inDirectory='../data_test/english/'
-inFileName=inDirectory+'counters_.dat'
+inFileName=inDirectory+'counters.dat'
+#inFileName=inDirectory+'counters_BR.dat'
 
 if '-d' in sys.argv:
     # Set input directory
@@ -37,8 +38,44 @@ if '-d' in sys.argv:
     print 'SET INPUT FILE',inFileName
     time.sleep(1)
 
+if '-C' in sys.argv:
+    # Flag for filtering by country
+    chosenCountry=sys.argv[(sys.argv).index('-C')+1]
+    inFileName=inDirectory+'counters_'+chosenCountry+'.dat'
+    print 'ADDED COUNTRY FLAG',chosenCountry
+    time.sleep(1)
+    # If a flag used to filter by country
+    # need to change the format of daily files
+
+if '-clean' in sys.argv:
+    # Clean out plots and data directories 
+    try:
+        os.system('rm -r '+inDirectory+'data/')     
+    except:
+        print 'CANT REMOVE data/'
+    try:
+        os.system('rm -r '+inDirectory+'plots/')    
+    except:
+        print 'CANT REMOVE plots/'
+
+    print 'CLEANING OLD OUTPUT'
+    time.sleep(1)
+
+
 inFile=open(inFileName,'r')
 data=pickle.load(inFile)
+
+nTopics=0
+for source in ['tw','fb']:
+    try:
+        nSourceTopics=len(data[source]['topic_sums'].keys())
+        if nSourceTopics>nTopics:nTopics=nSourceTopics
+    except:
+        print 'NO TOPICS FOR',source
+
+plotCycle=itertools.cycle(plotColours[0:nTopics])
+print 'GOT',nTopics,'TOPICS'
+time.sleep(1)
 
 try:
     os.mkdir(inDirectory+'plots')
@@ -77,6 +114,8 @@ def main():
         #####################
         # Topics
         topicSums={}
+
+
         for k,v in data[source]['topics'].items():
 #            print k,v.sum()
             topicSums[k]=v.sum()
@@ -99,48 +138,52 @@ def main():
         ax.set_yticks([i+0.5 for i in range(len(topicSums))])
         ax.set_xlabel('Number of Tweets')
         ax.set_yticklabels([v[0] for v in topicSums]);
-        plt.savefig(inDirectory+'plots/'+source+'_hashtags_'+chosenLanguage+'.png', bbox_inches='tight',dpi=200)
+        plt.savefig(inDirectory+'plots/'+source+'_topics_'+chosenLanguage+'.png', bbox_inches='tight',dpi=200)
         # Get sum of topics, use this to plot in some kind of order
 
         #####################
         # Plot total voume time series
 
         print source,'TOTAL'
-        
-        sns.set(context='poster', style='whitegrid', font='Arial', rc={'font.size': 14, 'axes.labelsize': 16, 'legend.fontsize': 14.0,'axes.titlesize': 12, 'xtick.labelsize': 14, 'ytick.labelsize': 14})
-        sns.despine()
-        rc={'font.size': 14, 'axes.labelsize': 16, 'legend.fontsize': 14.0, 
-            'axes.titlesize': 12, 'xtick.labelsize': 14, 'ytick.labelsize': 12}
-        totalSeriesFig, ax = plt.subplots()
-        ax=data[source]['time'][0:-1].plot(legend=False,figsize=(14,8),style=gpBlue,lw=7)
-        ax.grid(color='lightgray', alpha=0.4)
-        ax.axis(ymin=0)
-        plt.savefig(inDirectory+'plots/'+source+'_total_'+chosenLanguage+'.png',dpi=60)
-        mpld3.save_html(totalSeriesFig, inDirectory+'plots/'+source+'_total_'+chosenLanguage+'.php', figid=chosenLanguage+"TotalSeriesFig")
-
+        try: 
+            sns.set(context='poster', style='whitegrid', font='Arial', rc={'font.size': 14, 'axes.labelsize': 16, 'legend.fontsize': 14.0,'axes.titlesize': 12, 'xtick.labelsize': 14, 'ytick.labelsize': 14})
+            sns.despine()
+            rc={'font.size': 14, 'axes.labelsize': 16, 'legend.fontsize': 14.0, 
+                'axes.titlesize': 12, 'xtick.labelsize': 14, 'ytick.labelsize': 12}
+            totalSeriesFig, ax = plt.subplots()
+            ax=data[source]['time'][0:-1].plot(legend=False,figsize=(14,8),style=gpBlue,lw=7)
+            ax.grid(color='lightgray', alpha=0.4)
+            ax.axis(ymin=0)
+            plt.savefig(inDirectory+'plots/'+source+'_total_'+chosenLanguage+'.png',dpi=60)
+            mpld3.save_html(totalSeriesFig, inDirectory+'plots/'+source+'_total_'+chosenLanguage+'.php', figid=chosenLanguage+"TotalSeriesFig")
+        except:
+            print source,'TOTAL FAILED'
+            print traceback.print_exc()
         #####################
         # Plot all topics together
+        try:
+            allSeriesFig, ax = plt.subplots()
+            for c in sortedMaxs:
+                if not c[0]=='NaN':
+                    a=c[0]
+                    b=data[source]['topics'][a]
 
-        allSeriesFig, ax = plt.subplots()
-        for c in sortedMaxs:
-            if not c[0]=='NaN':
-                a=c[0]
-                b=data[source]['topics'][a]
-
-                col=plotCycle.next()
+                    col=plotCycle.next()
 #                print a,col
-                ax=b.plot(label=a,legend=True,figsize=(14,8),style=col,lw=3)
-                ax.grid(color='lightgray', alpha=0.7)
-                xlabels = ax.get_xticklabels()
-                ylabels = ax.get_yticklabels()
-                mpld3.save_html(allSeriesFig, inDirectory+'plots/'+source+'_all_'+chosenLanguage+'.php', figid=chosenLanguage+"AllSeriesFig")
-
+                    ax=b.plot(label=a,legend=True,figsize=(14,8),style=col,lw=3)
+                    ax.grid(color='lightgray', alpha=0.7)
+                    xlabels = ax.get_xticklabels()
+                    ylabels = ax.get_yticklabels()
+                    mpld3.save_html(allSeriesFig, inDirectory+'plots/'+source+'_all_'+chosenLanguage+'.php', figid=chosenLanguage+"AllSeriesFig")
+        except:
+            print source,'ALL TOPICS FAILED'
         ######################
 # Plot individual topics
 
         print source,'INDIVIDUAL TOTAL'
-        
+        plt.cla() 
         for c in sortedMaxs:    
+            print '\t',c
             if not c[0]==u'NaN':
                 a=c[0]
                 b=data[source]['topics'][a]
@@ -158,15 +201,16 @@ def main():
 # Plot sentiment
 
         print source,'SENTIMENT'
-        
-        sentimentFig, ax = plt.subplots()
-        data[source]['pos'].plot(label='Positive',legend=True, figsize=(14,8),lw=3)
-        (-1.0*data[source]['neg']).plot(label='Negative',legend=True,lw=3)
-        ax.grid(color='lightgray', alpha=0.7)
-        xlabels = ax.get_xticklabels()
-        ylabels = ax.get_yticklabels()
-        mpld3.save_html(sentimentFig, inDirectory+'plots/'+source+'_sentiment_'+chosenLanguage+'.php', figid=chosenLanguage+"sentimentFig")
-
+        try: 
+            sentimentFig, ax = plt.subplots()
+            data[source]['pos'].plot(label='Positive',legend=True, figsize=(14,8),lw=3)
+            (-1.0*data[source]['neg']).plot(label='Negative',legend=True,lw=3)
+            ax.grid(color='lightgray', alpha=0.7)
+            xlabels = ax.get_xticklabels()
+            ylabels = ax.get_yticklabels()
+            mpld3.save_html(sentimentFig, inDirectory+'plots/'+source+'_sentiment_'+chosenLanguage+'.php', figid=chosenLanguage+"sentimentFig")
+        except:
+            print source,'SENTIMENT FAILED'
         #######################
 # Plot top hashtags
         try:
@@ -205,19 +249,20 @@ def main():
         ###########################
         # Plot top unigrams
         print source,'UNIGRAMS'
-        
-        data[source]['unigrams']=sorted(data[source]['unigrams'].items(), key=operator.itemgetter(1))
-        
-        fig, ax = plt.subplots()
-        ax.barh(range(10),[v[1] for v in data[source]['unigrams'][-10:]],log=False,linewidth=0,alpha=0.7,color="#00aeef")
-        ax.set_axis_bgcolor('#efefef')
-        ax.xaxis.set_major_formatter(formatter)
-        ax.xaxis.set_major_locator(plt.MaxNLocator(4))
-        ax.set_yticks([i+0.5 for i in range(10)])
-        ax.set_xlabel('Number of Tweets')
-        ax.set_yticklabels([v[0].decode('utf-8') for v in data[source]['unigrams'][-10:]]);
-        plt.savefig(inDirectory+'plots/'+source+'_unigrams_'+chosenLanguage+'.png', bbox_inches='tight',dpi=200)
-
+        try: 
+            data[source]['unigrams']=sorted(data[source]['unigrams'].items(), key=operator.itemgetter(1))
+            
+            fig, ax = plt.subplots()
+            ax.barh(range(10),[v[1] for v in data[source]['unigrams'][-10:]],log=False,linewidth=0,alpha=0.7,color="#00aeef")
+            ax.set_axis_bgcolor('#efefef')
+            ax.xaxis.set_major_formatter(formatter)
+            ax.xaxis.set_major_locator(plt.MaxNLocator(4))
+            ax.set_yticks([i+0.5 for i in range(10)])
+            ax.set_xlabel('Number of Tweets')
+            ax.set_yticklabels([v[0].decode('utf-8') for v in data[source]['unigrams'][-10:]]);
+            plt.savefig(inDirectory+'plots/'+source+'_unigrams_'+chosenLanguage+'.png', bbox_inches='tight',dpi=200)
+        except:
+            print source,'UNIGRAMS FAILED'
         ###########################
 #   Write top users
         print source,'USERS'
@@ -260,35 +305,49 @@ def main():
 # Write top bigrams
 
         print source,'BIGRAMS'
-        
-        data[source]['bigrams']=sorted(data[source]['bigrams'].items(), key=operator.itemgetter(1))
+        try:    
+            data[source]['bigrams']=sorted(data[source]['bigrams'].items(), key=operator.itemgetter(1))
 
-        fig, ax = plt.subplots()
-        ax.barh(range(10),[v[1] for v in data[source]['bigrams'][-10:]],log=False,linewidth=0,alpha=0.7,color="#00aeef")
-        ax.set_axis_bgcolor('#efefef')
-        ax.xaxis.set_major_formatter(formatter)
-        ax.xaxis.set_major_locator(plt.MaxNLocator(4))
-        ax.set_yticks([i+0.5 for i in range(10)])
-        ax.set_xlabel('Number of Tweets')
-        ax.set_yticklabels([v[0][0].decode('utf-8')+' '+v[0][1].decode('utf-8') for v in data[source]['bigrams'][-10:]]);
-        plt.savefig(inDirectory+'plots/'+source+'_bigrams_'+chosenLanguage+'.png', bbox_inches='tight',dpi=200)
-
+            fig, ax = plt.subplots()
+            ax.barh(range(10),[v[1] for v in data[source]['bigrams'][-10:]],log=False,linewidth=0,alpha=0.7,color="#00aeef")
+            ax.set_axis_bgcolor('#efefef')
+            ax.xaxis.set_major_formatter(formatter)
+            ax.xaxis.set_major_locator(plt.MaxNLocator(4))
+            ax.set_yticks([i+0.5 for i in range(10)])
+            ax.set_xlabel('Number of Tweets')
+            ax.set_yticklabels([v[0][0].decode('utf-8')+' '+v[0][1].decode('utf-8') for v in data[source]['bigrams'][-10:]]);
+            plt.savefig(inDirectory+'plots/'+source+'_bigrams_'+chosenLanguage+'.png', bbox_inches='tight',dpi=200)
+        except:
+            print source,'BIGRAMS FAILED'
         ####################
 # Write top trigrams
 
         print source,'TRIGRAMS'
-        
-        data[source]['trigrams']=sorted(data[source]['trigrams'].items(), key=operator.itemgetter(1))
-        
-        fig, ax = plt.subplots()
-        ax.barh(range(10),[v[1] for v in data[source]['trigrams'][-10:]],log=False,linewidth=0,alpha=0.7,color="#00aeef")
-        ax.set_axis_bgcolor('#efefef')
-        ax.xaxis.set_major_formatter(formatter)
-        ax.xaxis.set_major_locator(plt.MaxNLocator(4))
-        ax.set_yticks([i+0.5 for i in range(10)])
-        ax.set_xlabel('Number of Tweets')
-        ax.set_yticklabels([v[0][0].decode('utf-8')+' '+v[0][1].decode('utf-8')+' '+v[0][2].decode('utf-8') for v in data[source]['trigrams'][-10:]]);
-        plt.savefig(inDirectory+'plots/'+source+'_trigrams_'+chosenLanguage+'.png', bbox_inches='tight',dpi=200)
-    print '--------'
+        try:
+         
+            data[source]['trigrams']=sorted(data[source]['trigrams'].items(), key=operator.itemgetter(1))
+            
+            fig, ax = plt.subplots()
+            ax.barh(range(10),[v[1] for v in data[source]['trigrams'][-10:]],log=False,linewidth=0,alpha=0.7,color="#00aeef")
+            ax.set_axis_bgcolor('#efefef')
+            ax.xaxis.set_major_formatter(formatter)
+            ax.xaxis.set_major_locator(plt.MaxNLocator(4))
+            ax.set_yticks([i+0.5 for i in range(10)])
+            ax.set_xlabel('Number of Tweets')
+            ax.set_yticklabels([v[0][0].decode('utf-8')+' '+v[0][1].decode('utf-8')+' '+v[0][2].decode('utf-8') for v in data[source]['trigrams'][-10:]]);
+            plt.savefig(inDirectory+'plots/'+source+'_trigrams_'+chosenLanguage+'.png', bbox_inches='tight',dpi=200)
+        except:
+            print source,'TRIGRAMS FAILED'
+        print '--------'
+#TODO plot of both sources together
+    plt.cla()
+    try:
+        print '<ALL> COMBINED'
+        data['fb']['time'][0:-1].plot(label='FB',legend=True)
+        data['tw']['time'][0:-1].plot(label='TW',legend=True)
+        (data['tw']['time'][0:-1]+data['fb']['time']).plot(label='ALL',legend=True)
+        plt.savefig(inDirectory+'plots/total_combined.png',bbox_inches='tight',dpi=200)
+    except:
+        print 'COMBINED PLOT FAILED'
 if __name__=='__main__':
     main()
