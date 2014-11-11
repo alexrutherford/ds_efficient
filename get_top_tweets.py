@@ -10,9 +10,42 @@ from sortedcontainers import SortedSet
 
 dataDirectory='../data_test/'
 dateFileFormat='/[0-9][0-9][0-9][0-9]_*[0-9][0-9]_[0-9][0-9].json'
+#dateFileFormat='/[0-9][0-9][0-9][0-9]_*[0-9][0-9]_[0-9][0-9]_BR.json'
+
+if '-d' in sys.argv:
+    i=(sys.argv).index('-d')
+    dataDirectory=sys.argv[i+1]
+    print 'SET DATA DIRECTORY',dataDirectory
+    time.sleep(1)
+
+if '-C' in sys.argv:
+    i=(sys.argv).index('-C')
+    chosenCountry=sys.argv[i+1]
+    dateFileFormat=dateFileFormat.partition('.json')[0]+'_'+chosenCountry+'.json'
+    print 'SET COUNTRY',chosenCountry
+    time.sleep(1)
+
+try:
+    os.mkdir(dataDirectory+'plots/')
+except:
+    print traceback.print_exc()
+    print 'plots directories already exist'
+
+try:
+    os.mkdir(dataDirectory+'data/')
+except:
+    print traceback.print_exc()
+    print 'data directories already exist'
 
 topics=[u'None',u'General',u'Politics/Opinion',u'Economy',u'Risk/Disaster',u'Energy',u'Weather',u'Agriculture/Forestry',u'Oceans/Water',u'Arctic']
 topicHash={'General':'general','Politics/Opinion':'politics','Economy':'economy','Risk/Disaster':'risk','Energy':'energy','Weather':'weather','Agriculture/Forestry':'agriculture','Oceans/Water':'oceans','Arctic':'arctic'}
+
+topics=[u'campaign english',u'prevention neutral',u'testing neutral',u'campaign portuguese',u'prevention negative',u'prevention positive',u'discrimination positive',u'discrimination negative']
+topics=[u'campaign',u'prevention',u'testing',u'discrimination']
+
+topicHash={}
+for t in topics:topicHash[t]=t
+
 # Maps from topics as in datasift tags and output file names
 # TODO construct this list automatically
 ##############
@@ -20,21 +53,21 @@ def writeTopTweets(tweetCounter,tweetTopicCounter,topTopicFollowers,topFollowers
 ##############
     sortedTweets=sorted(tweetCounter.iteritems(), key=operator.itemgetter(1))
     sortedTweets.reverse()
-    outFile=csv.writer(open('data/all.top.retweet','w'),delimiter='\t')
+    outFile=csv.writer(open(dataDirectory+'data/all.top.retweet','w'),delimiter='\t')
 
     for t in sortedTweets[0:10]:
         outFile.writerow([t[0]])
 # Write out top tweet ids for all tweets
 
-    outFile=csv.writer(open('data/all.top.followers','w'),delimiter='\t')
+    outFile=csv.writer(open(dataDirectory+'data/all.top.followers','w'),delimiter='\t')
     for t in reversed(topFollowers[0:10]):
         outFile.writerow([t[1]])
 # Write out top follower count tweet id's for all tweets
 
     for k,v in reversed(topTopicFollowers.items()[0:10]):
-        print k
+        print '+++++',k,v
         if not k=='None':
-            fileName='data/'+topicHash[k]+'.top.followers'
+            fileName=dataDirectory+'data/'+topicHash[k]+'.top.followers'
             outFile=csv.writer(open(fileName,'w'),delimiter='\t')
             for id in reversed(SortedSet(v)):
             # Using SortedSet() as a hack as there inexplicably appears a duplicate 
@@ -51,7 +84,7 @@ def writeTopTweets(tweetCounter,tweetTopicCounter,topTopicFollowers,topFollowers
         if not k=='None':
             sortedTweets=sorted(v.iteritems(),key=lambda x:x[1])
             sortedTweets.reverse()
-            fileName='data/'+topicHash[k]+'.top.retweet'
+            fileName=dataDirectory+'data/'+topicHash[k]+'.top.retweet'
             outFile=csv.writer(open(fileName,'w'),delimiter='\t')
             print k
             for t in sortedTweets[0:10]:
@@ -69,7 +102,10 @@ def inLastNDays(d,l,n=7):
     '''
     Tests if daily tweet file l+d corresponds to last n days
     '''
-    fileTimes=d.partition(l+'/')[2].replace('.json','').split('_')
+    fileTimes=d.partition(l)[2].replace('.json','').split('_')
+    fileTimes=fileTimes[0:3]
+    # Need this if there is a country code suffix
+
     fileTimes=[int(f) for f in fileTimes]
     # These are date components: 2104,7,21
 
@@ -121,57 +157,75 @@ def countTweets(files):
             nTotal+=1
             nLine+=1
             isRetweet=False
+            id=None
             try:
                 tweet=json.loads(line)
             except:
                 print 'PARSE ERROR',f,nLine
-            try:
+            if 'twitter' in tweet.keys():
+                try:
 
-                try:
-                    id=tweet['twitter']['retweeted']['id']
-                    tweetCounter[id]+=1
+                    try:
+                        id=tweet['twitter']['retweet']['id']
+                        tweetCounter[id]+=1
+                        isRetweet=True
+                    except:
+                        id=tweet['twitter']['id']
+                        tweetCounter[id]+=1
+                    content=tweet['interaction']['content'].encode('utf-8').replace('\n',' ')
                 except:
-                    id=tweet['twitter']['id']
-                content=tweet['interaction']['content'].encode('utf-8').replace('\n',' ')
-            except:
-                nErrors+=1
-   ##########################################################
-            try:
-                tweetTopics=tweet['interaction']['tag_tree']['topic']
-                for topic in tweetTopics:
-                    tweetTopicCounter[topic][(content,id)]+=1
-            except:
-                tweetTopicCounter[u'None'][(content,id)]+=1
-                nTopicErrors+=1
-                # Count tweets by topic
-            try:                
+                    nErrors+=1
+       ##########################################################
                 try:
-                    nFollowers=tweet['twitter']['user']['followers_count']
+                    tweetTopics=tweet['interaction']['tag_tree']['topic'].items()
+#                    print tweetTopics
+                    #print "---"
+                    #AtweetTopics=[m[0]+' '+m[1][0] for m in tweetTopics]
+                    #print AtweetTopics
+                    tweetTopics=[m[0].lower() for m in tweetTopics] # temporary in (TL)
+                    #print "==="
+                    #print BtweetTopics
+                    #print "..."
+                    #continue
+#                    print tweetTopics
+                    # TODO find a general way to parse topics
+                    # Currently over engineered to brazil schema
+                    
+                    for topic in tweetTopics:
+                        tweetTopicCounter[topic.lower()][(content,id)]+=1
+                except KeyError:
+#                tweetTopicCounter[u'None'][(content,id)]+=1
+                    nTopicErrors+=1
+                    # Count tweets by topic
+                try:                
+                    try:
+                        nFollowers=tweet['twitter']['user']['followers_count']
+                    except:
+                        nFollowers=tweet['twitter']['retweet']['user']['followers_count']
+                    
+                    if nFollowers>currentTopFollower and not isRetweet:
+                        bisect.insort(topFollowers,(nFollowers,id))
+                        currentTopFollower=topFollowers[0][0]
+                    # Insert tweet to maintain order
+                    # if new number of followers is larger than lowest value
+                        if len(topFollowers)>10:topFollowers=topFollowers[-10:]
+                    # Allow lower values to drop out
+                    
+                    for topic in tweetTopics:
+                        if nFollowers>currentTopTopicFollowers[topic.lower()] and not isRetweet:
+                            currentTopTopicFollowers[topic.lower()]=topTopicFollowers[topic.lower()][0][0]                            
+                            bisect.insort(topTopicFollowers[topic.lower()],(nFollowers,id))
+                            if len(topTopicFollowers[topic.lower()])>10:topTopicFollowers[topic.lower()]=topTopicFollowers[topic.lower()][-10:]
                 except:
-                    nFollowers=tweet['twitter']['retweet']['user']['followers_count']
-                
-                if nFollowers>currentTopFollower and not isRetweet:
-                    bisect.insort(topFollowers,(nFollowers,id))
-                    currentTopFollower=topFollowers[0][0]
-                # Insert tweet to maintain order
-                # if new number of followers is larger than lowest value
-                    if len(topFollowers)>10:topFollowers=topFollowers[-10:]
-                # Allow lower values to drop out
-                
-                for topic in tweetTopics:
-                    if nFollowers>currentTopTopicFollowers[topic] and not isRetweet:
-                        currentTopTopicFollowers[topic]=topTopicFollowers[topic][0][0]                            
-                        bisect.insort(topTopicFollowers[topic],(nFollowers,id))
-                        if len(topTopicFollowers[topic])>10:topTopicFollowers[topic]=topTopicFollowers[topic][-10:]
-            except:
-                nFollowerError+=1
-                print traceback.print_exc()
-                time.sleep(1000)
+                    nFollowerError+=1
+                    print traceback.print_exc()
             # Get tweets with top followers
-    print nErrors,nTopicErrors,nFollowerError
-    print topTopicFollowers['General']
+#    print nErrors,nTopicErrors,nFollowerError
+#    print topTopicFollowers['General']
     for k,v in tweetTopicCounter.items():
         print k,len(v)
+#    for k,v in topTopicFollowers.items():
+#        print k,type(v)
 
     writeTopTweets(tweetCounter,tweetTopicCounter,topTopicFollowers,topFollowers)
 ##############
@@ -180,10 +234,10 @@ def main():
 
     languageDirectories=glob.glob(dataDirectory+'*')
     
-    for l in languageDirectories:
-        dateFileNames=glob.glob(l+dateFileFormat)
-
-    filesInRange=[f for f in dateFileNames if inLastNDays(f,l,14)]
+#    for l in languageDirectories:
+#        dateFileNames=glob.glob(l+dateFileFormat)
+    dateFileNames=glob.glob(dataDirectory+dateFileFormat)
+    filesInRange=[f for f in dateFileNames if inLastNDays(f,dataDirectory,14)]
 
     countTweets(filesInRange)
 

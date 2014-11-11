@@ -84,7 +84,8 @@ except:
     print 'plots AND data DIRECTORIES ALREADY EXIST'
 # Where to place plots/data
 
-chosenLanguage='english'
+chosenLanguage=''
+# Use this flag if we want to distinguish between plots from several corpora
 
 if '-l' in sys.argv:
     # Flag for filtering by language
