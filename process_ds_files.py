@@ -168,6 +168,8 @@ def processFile(l,f,dateFileHash,counterDict,cartoFile,deletionsFile,dcFile):
         '''choose a topic here '''
         try:
             messageTopics=message['interaction']['tag_tree']['topic'].items()
+            rawTopics=[m[0]+'_'+m[1][0] for m in messageTopics] # We need these for dc.js file
+            
             if topicHack:
 #                messageTopics=[m[0]+' '+m[1][0] for m in messageTopics]
                 messageTopics=[m[0] for m in messageTopics]
@@ -179,12 +181,13 @@ def processFile(l,f,dateFileHash,counterDict,cartoFile,deletionsFile,dcFile):
             if len(messageTopics)==1:
 #                chosenTopic=messageTopics[0][0]+'_'+messageTopics[0][1][0]
                 chosenTopic=messageTopics[0]
+                rawTopic=rawTopics[0]
             else:
                 chosenTopic=random.choice(messageTopics)
+                rawTopic=rawTopics[messageTopics.index(chosenTopic)]
 #                chosenTopic=chosenTopic[0]+'_'+chosenTopic[1][0]
             if topicHack:
                 chosenTopic=chosenTopic.partition(' ')[0]
-
         except:
             nTopicError+=1
         ##############
@@ -273,7 +276,7 @@ def processFile(l,f,dateFileHash,counterDict,cartoFile,deletionsFile,dcFile):
                     isoTime=getISODate(message['interaction']['created_at'])
                     closestCityCoords,closestCity=getClosestCity(cities,coords,tol=120)
 #                    print closestCityCoords,closestCity
-                    if closestCity:dcFile.writerow([closestCity.encode('utf-8'),closestCityCoords[0],closestCityCoords[1],isoTime,chosenTopic])
+                    if closestCity:dcFile.writerow([closestCity.encode('utf-8'),closestCityCoords[0],closestCityCoords[1],isoTime,rawTopic])
                 except:
 #                    print traceback.print_exc()
                     nDcError+1
@@ -668,9 +671,9 @@ def initDeletionsFile(l):
     Returns an open file handle to write deleted tweets
     '''
     if not chosenCountry:
-        f=open(l+'/deletions.csv','w')
+        f=open(l+'deletions.csv','w')
     else:
-        f=open(l+'/deletions_'+chosenCountry+'.csv','w')
+        f=open(l+'deletions_'+chosenCountry+'.csv','w')
     # Open a fresh file for now
 
     return f
