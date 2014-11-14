@@ -12,6 +12,14 @@ dataDirectory='../data_test/'
 dateFileFormat='/[0-9][0-9][0-9][0-9]_*[0-9][0-9]_[0-9][0-9].json'
 #dateFileFormat='/[0-9][0-9][0-9][0-9]_*[0-9][0-9]_[0-9][0-9]_BR.json'
 
+nDays=14
+# Length of window for top tweets
+if '-n' in sys.argv:
+    i=(sys.argv).index('-n')
+    nDays=int(sys.argv[i+1])
+    print 'LENGTH OF WINDOW',nDays
+    time.sleep(1)
+
 if '-d' in sys.argv:
     i=(sys.argv).index('-d')
     dataDirectory=sys.argv[i+1]
@@ -23,6 +31,18 @@ if '-C' in sys.argv:
     chosenCountry=sys.argv[i+1]
     dateFileFormat=dateFileFormat.partition('.json')[0]+'_'+chosenCountry+'.json'
     print 'SET COUNTRY',chosenCountry
+    time.sleep(1)
+
+if '-clean' in sys.argv:
+    print 'TRYING TO CLEAN..'
+    try:
+        os.system("rm -r "+dataDirectory+'data/')
+    except:
+        print 'CANT CLEAN data/'
+    try:
+        os.system("rm -r "+dataDirectory+'plots/')
+    except:
+        print 'CANT CLEAN plots/'
     time.sleep(1)
 
 try:
@@ -65,7 +85,7 @@ def writeTopTweets(tweetCounter,tweetTopicCounter,topTopicFollowers,topFollowers
 # Write out top follower count tweet id's for all tweets
 
     for k,v in reversed(topTopicFollowers.items()[0:10]):
-        print '+++++',k,v
+#        print '+++++',k,v
         if not k=='None':
             fileName=dataDirectory+'data/'+topicHash[k]+'.top.followers'
             outFile=csv.writer(open(fileName,'w'),delimiter='\t')
@@ -74,7 +94,7 @@ def writeTopTweets(tweetCounter,tweetTopicCounter,topTopicFollowers,topFollowers
             # final entry in cases of low volume
                 if not id[0]==-1:
                     outFile.writerow([id[1]])
-                    print '\t',id
+#                    print '\t',id
 # Write out top follow count tweet ids for tweets, by topic
             outFile=None
 # Need to flush out file handle
@@ -86,13 +106,13 @@ def writeTopTweets(tweetCounter,tweetTopicCounter,topTopicFollowers,topFollowers
             sortedTweets.reverse()
             fileName=dataDirectory+'data/'+topicHash[k]+'.top.retweet'
             outFile=csv.writer(open(fileName,'w'),delimiter='\t')
-            print k
+#            print k
             for t in sortedTweets[0:10]:
-                print '\t',t[1],t[0][0],t[0][1]
+#                print '\t',t[1],t[0][0],t[0][1]
                 if t[1]>1:
                 # Counts the original as a retweet, so throw out any that were tweeted only once
                     outFile.writerow([t[0][1]])
-                print 'line',fileName
+#                print 'line',fileName
 # Write out top retweeted tweet id's by topic
     outFile=None
 
@@ -222,8 +242,8 @@ def countTweets(files):
             # Get tweets with top followers
 #    print nErrors,nTopicErrors,nFollowerError
 #    print topTopicFollowers['General']
-    for k,v in tweetTopicCounter.items():
-        print k,len(v)
+#    for k,v in tweetTopicCounter.items():
+#        print k,len(v)
 #    for k,v in topTopicFollowers.items():
 #        print k,type(v)
 
@@ -237,7 +257,7 @@ def main():
 #    for l in languageDirectories:
 #        dateFileNames=glob.glob(l+dateFileFormat)
     dateFileNames=glob.glob(dataDirectory+dateFileFormat)
-    filesInRange=[f for f in dateFileNames if inLastNDays(f,dataDirectory,14)]
+    filesInRange=[f for f in dateFileNames if inLastNDays(f,dataDirectory,nDays)]
 
     countTweets(filesInRange)
 

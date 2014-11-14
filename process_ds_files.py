@@ -109,7 +109,7 @@ def fileStream(l):
         print root
     # Recursively looks through language directories 
     # in root data directory to find all DatSift files
-        if len(files)>0 and re.search(r'2014-[0-9][0-9]',root):
+        if len(files)>0 and re.match(l+'2014-[0-9][0-9]',root):
         # Find all files
 #            print root,dirs,files
             for f in files:
@@ -124,6 +124,7 @@ def processFile(l,f,dateFileHash,counterDict,cartoFile,deletionsFile,dcFile):
     '''Takes directory corresponding to language directory, file to process
     and list of existing daily files. Adds contents of file to counters
     Creates daily files that are not yet created and returns.'''
+    nLinkError=0
 
     nTwTimeError=0
     nFbTimeError=0
@@ -169,7 +170,7 @@ def processFile(l,f,dateFileHash,counterDict,cartoFile,deletionsFile,dcFile):
         try:
             messageTopics=message['interaction']['tag_tree']['topic'].items()
             rawTopics=[m[0]+'_'+m[1][0] for m in messageTopics] # We need these for dc.js file
-            
+#            print 'RAW',rawTopics 
             if topicHack:
 #                messageTopics=[m[0]+' '+m[1][0] for m in messageTopics]
                 messageTopics=[m[0] for m in messageTopics]
@@ -188,6 +189,10 @@ def processFile(l,f,dateFileHash,counterDict,cartoFile,deletionsFile,dcFile):
 #                chosenTopic=chosenTopic[0]+'_'+chosenTopic[1][0]
             if topicHack:
                 chosenTopic=chosenTopic.partition(' ')[0]
+
+            if rawTopic=='campaign_english':
+                print 'WOAH',rawTopics,messageTopics
+                time.sleep(1000)
         except:
             nTopicError+=1
         ##############
@@ -276,7 +281,9 @@ def processFile(l,f,dateFileHash,counterDict,cartoFile,deletionsFile,dcFile):
                     isoTime=getISODate(message['interaction']['created_at'])
                     closestCityCoords,closestCity=getClosestCity(cities,coords,tol=120)
 #                    print closestCityCoords,closestCity
-                    if closestCity:dcFile.writerow([closestCity.encode('utf-8'),closestCityCoords[0],closestCityCoords[1],isoTime,rawTopic])
+                    if closestCity:
+                        dcFile.writerow([closestCity.encode('utf-8'),closestCityCoords[0],closestCityCoords[1],isoTime,rawTopic])
+#                        print rawTopic
                 except:
 #                    print traceback.print_exc()
                     nDcError+1
@@ -296,6 +303,14 @@ def processFile(l,f,dateFileHash,counterDict,cartoFile,deletionsFile,dcFile):
                             counterDict['tw']['mentions'][m.lower()]+=1 
                 except:
                     nMentionError+=1
+                ###############################################   
+                '''Links'''
+                try:
+                    if inCountry:
+                        for m in message['links']['normalized_url']:
+                            counterDict['tw']['links'][m.lower()]+=1 
+                except:
+                    nLinkError+=1
                 ###############################################   
                 '''Domains'''
                 try:
@@ -446,6 +461,15 @@ def processFile(l,f,dateFileHash,counterDict,cartoFile,deletionsFile,dcFile):
                     cartoFile.writerow([message['interaction']['id'],str(coords[0]),str(coords[1]),isoTime])
                 except:
                     nGeoError+=1
+                ###############################################   
+                '''Links'''
+                try:
+                    if inCountry:
+                        for m in message['links']['normalized_url']:
+                            counterDict['fb']['links'][m.lower()]+=1 
+                except:
+                    nLinkError+=1
+                    print traceback.print_exc()
                 ###############################################   
                 '''Domains'''
                 try:
@@ -711,6 +735,8 @@ def initCounters(l):
         twIdSet=data['tw']['ids']
         twTopicCounter=data['tw']['topics']
         twLanguageCounter=data['tw']['languages']
+        twLinkCounter=data['tw']['links']
+
         
         fbTimeSeries=data['fb']['time']
         fbPosSeries=data['fb']['pos']
@@ -726,6 +752,7 @@ def initCounters(l):
         fbTopicCountryCounter=data['fb']['topicCountry']        
         fbGenderTopicCounter=data['fb']['genderTopic']        
         fbTopicSums=data['fb']['topic_sums']
+        fbLinkCounter=data['fb']['links']
         
         dsFileSet=data['ds']
 
@@ -761,6 +788,7 @@ def initCounters(l):
         fbUserCounter=collections.defaultdict(int)
         fbLanguageCounter=collections.defaultdict(int)
         fbDomainCounter=collections.defaultdict(int)
+        fbLinkCounter=collections.defaultdict(int)
 
         twTopicColocCounter=collections.defaultdict(int)
         twHashTagCounter=collections.defaultdict(int)
@@ -773,6 +801,7 @@ def initCounters(l):
         twUserCounter=collections.defaultdict(int)
         twLanguageCounter=collections.defaultdict(int)
         twTopicSums=collections.defaultdict(int)
+        twLinksCounter=collections.defaultdict(int)
         twTopicCounter={}
         twTopicCountryCounter={}
         twGenderTopicCounter={}
@@ -790,6 +819,7 @@ def initCounters(l):
     counterDict['tw']['domains']=twDomainCounter
     counterDict['tw']['rawdomains']=twRawDomainCounter
     counterDict['tw']['mentions']=twMentionCounter
+    counterDict['tw']['links']=twLinksCounter
     counterDict['tw']['time']=twTimeSeries
     counterDict['tw']['pos']=twPosSeries
     counterDict['tw']['neg']=twNegSeries
@@ -815,6 +845,7 @@ def initCounters(l):
     counterDict['fb']['users']=fbUserCounter
     counterDict['fb']['languages']=fbLanguageCounter
     counterDict['fb']['domains']=fbDomainCounter
+    counterDict['fb']['links']=fbLinkCounter
     counterDict['fb']['topicCountry']=fbTopicCountryCounter
     counterDict['fb']['genderTopic']=fbGenderTopicCounter
     

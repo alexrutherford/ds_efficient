@@ -16,20 +16,32 @@ Reads in serialised data from ```counters.dat``` and produces plots interatively
 Reads in serialised data from ```counters.dat``` and produces plots and data files for web pages. Pass in directory with pickle file with ```-d <dataDirectory>```
 
 #Usage
-* Location of data specified by ```dataDirectory``` and set with ```-d``` flag. If several corpora exist (typically corresponding to different languages) then invoke separately for each one (only overhead for running multiple times is parsing of geolocation world pickle file).  All files of matching ```DataSift*json``` within these directories and its subdirectories will be considered. This produces all output files in ```dataDirectory```.
+* Location of data specified by ```dataDirectory``` and set with ```-d``` flag. If several corpora exist (typically corresponding to different languages) then invoke separately for each one (only overhead for running multiple times is parsing of geolocation world pickle file).  All directories matching ```20[0-9]{2,2}-[0-9]{2,2}``` will be examined and all files within matching ```DataSift*json``` will be considered. This produces all output files in ```dataDirectory```.
 
 * To restrict to content geo-located to a particular country only; pass in 2 letter ISO country code ```python process_ds_files.py -C UK```
 
 * To produce a map of content snapped to particular cities for use in DC.js dashboard supply a list of cities ```python process_ds_files.py -c cities.csv```
 
+* To clean existing output files pass ```-clean``` flag.
+
 #Output Files
 ```process_ds_files.py``` produces a set of files for each corpora (in ```dataDirectory```)
 
-1. Set of daily files of form ```YYYY_MM_DD.json```, holds all messages from that day
+1. Set of daily files of form ```YYYY_MM_DD[_country].json```, holds all messages from that day
 2. Pickle file holding all counters and time series ```counters.dat```
 3. Input file to CartoDB ```carto.txt```
 4. Input file to DC.js ```dc.csv```
-5. Deletions file, all streaming messages later deleted ```deletions.csv```
+5. Deletions file, all streaming messages later deleted ```deletions.csv``` (only produced for streaming data, not historical queries)
+
+```make_plots.py``` produces all input plots for dashboard in png/mlpd3 format
+
+```get_top_tweets.py``` reads daily files from last N days and produces list of top tweets by ID ready for embedding.
+
+#Example Usage
+```python process_ds_files.py -d data/ -C BR -c cities.csv```
+```python process_deletions.py -d data/ -C BR```
+```python make_plots.py -d data/ -C BR -clean ```
+```python get_top_tweets.py -d data -n 7 -C BR -clean```
 
 #Dependencies
 * [Pandas](http://pandas.pydata.org/)
@@ -39,6 +51,8 @@ Reads in serialised data from ```counters.dat``` and produces plots and data fil
 * [NLTK](http://www.nltk.org/)
 * [Langid](https://github.com/saffsd/langid.py)
 * [GeoPy](https://pypi.python.org/pypi/geopy/1.3.0)
+* [Matplotlib](http://matplotlib.org/)
+* [MplD3](https://pypi.python.org/pypi/mpld3/0.2)
 
 #TODOs
 

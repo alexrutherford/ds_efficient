@@ -34,7 +34,7 @@ if '-d' in sys.argv:
     # Set input directory
     i=(sys.argv).index('-d')
     inDirectory=sys.argv[i+1]
-    inFileName=inDirectory+'counters_.dat'
+    inFileName=inDirectory+'counters.dat'
     print 'SET INPUT FILE',inFileName
     time.sleep(1)
 
@@ -43,6 +43,7 @@ if '-C' in sys.argv:
     chosenCountry=sys.argv[(sys.argv).index('-C')+1]
     inFileName=inDirectory+'counters_'+chosenCountry+'.dat'
     print 'ADDED COUNTRY FLAG',chosenCountry
+    print 'SET INPUT FILE',inFileName
     time.sleep(1)
     # If a flag used to filter by country
     # need to change the format of daily files
@@ -141,7 +142,7 @@ def main():
         ax.set_yticklabels([v[0] for v in topicSums]);
         plt.savefig(inDirectory+'plots/'+source+'_topics_'+chosenLanguage+'.png', bbox_inches='tight',dpi=200)
         # Get sum of topics, use this to plot in some kind of order
-
+        writeTop(topicSums,inDirectory+'data/'+source+'_topics_'+chosenLanguage+'.tsv')
         #####################
         # Plot total voume time series
 
@@ -184,7 +185,7 @@ def main():
         print source,'INDIVIDUAL TOTAL'
         plt.cla() 
         for c in sortedMaxs:    
-            print '\t',c
+#            print '\t',c
             if not c[0]==u'NaN':
                 a=c[0]
                 b=data[source]['topics'][a]
@@ -228,9 +229,28 @@ def main():
             ax.set_xlabel('Number of Tweets')
             ax.set_yticklabels(['#'+v[0] for v in data[source]['hashtags'][-10:]]);
             plt.savefig(inDirectory+'plots/'+source+'_hashtags_'+chosenLanguage+'.png', bbox_inches='tight',dpi=200)
+            writeTop(data[source]['hashtags'][-10:],inDirectory+'data/'+source+'_hashtags_'+chosenLanguage+'.tsv')
         except:
             print source,'HASHTAGS FAILED'
         ##########################
+# plot top raw URLS
+        try:
+            print source,'LINKS'
+            
+            data[source]['links']=sorted(data[source]['links'].items(), key=operator.itemgetter(1))
+            fig, ax = plt.subplots()
+            ax.barh(range(10),[v[1] for v in data[source]['links'][-10:]],log=False,linewidth=0,alpha=0.7,color="#00aeef")
+            ax.set_axis_bgcolor('#efefef')
+            ax.xaxis.set_major_formatter(formatter)
+            ax.xaxis.set_major_locator(plt.MaxNLocator(4))
+            ax.set_yticks([i+0.5 for i in range(10)])
+            ax.set_xlabel('Number of Tweets')
+            ax.set_yticklabels([v[0] for v in data[source]['links'][-10:]]);
+            plt.savefig(inDirectory+'plots/'+source+'_links_'+chosenLanguage+'.png', bbox_inches='tight',dpi=200)
+            writeTop(data[source]['links'][-10:],inDirectory+'data/'+source+'_rawDomains_'+chosenLanguage+'.tsv')
+        except:
+            print 'LINKS FAILED',source
+
 # plot top URLS
         try:
             print source,'DOMAINS'
@@ -245,6 +265,7 @@ def main():
             ax.set_xlabel('Number of Tweets')
             ax.set_yticklabels([v[0] for v in data[source]['domains'][-10:]]);
             plt.savefig(inDirectory+'plots/'+source+'_domains_'+chosenLanguage+'.png', bbox_inches='tight',dpi=200)
+            writeTop(data[source]['domains'][-10:],inDirectory+'data/'+source+'_domains_'+chosenLanguage+'.tsv')
         except:
             print 'DOMAINS FAILED',source
         ###########################
@@ -279,7 +300,7 @@ def main():
             ax.set_xlabel('Number of Tweets')
             ax.set_yticklabels(['@'+v[0] for v in data[source]['users'][-10:]]);
             plt.savefig(inDirectory+'plots/'+source+'_users_'+chosenLanguage+'.png', bbox_inches='tight',dpi=200)
-            writeTop(data[source]['users'][-10:],inDirectory+'data/'+source+'_users_'+chosenLanguage+'.tsv')
+            writeTop(data[source]['users'][-10:],inDirectory+'data/'+source+'_accounts_'+chosenLanguage+'.tsv')
         except:
             print source,'USERS FAILED'
 

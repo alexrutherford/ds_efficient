@@ -25,9 +25,9 @@ dateFileFormat='/[0-9][0-9][0-9][0-9]_*[0-9][0-9]_[0-9][0-9].json'
 
 chosenCountry=None
 ######################
-if '-c' in sys.argv:
+if '-C' in sys.argv:
     # Flag for filtering by country
-    i=(sys.argv).index('-c')
+    i=(sys.argv).index('-C')
     chosenCountry=sys.argv[i+1]
     dateFileFormat='/[0-9][0-9][0-9][0-9]_*[0-9][0-9]_[0-9][0-9]_'+chosenCountry+'.json'
     print 'ADDED COUNTRY FLAG',chosenCountry
