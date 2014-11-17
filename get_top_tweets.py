@@ -5,12 +5,13 @@ as outputted from process_ds_files.py.
 '''
 import glob,re,sys,os,csv,json
 import datetime,collections,operator
-import traceback,time,bisect
+import traceback,time,bisect,pickle
 from sortedcontainers import SortedSet
 
 dataDirectory='../data_test/'
 dateFileFormat='/[0-9][0-9][0-9][0-9]_*[0-9][0-9]_[0-9][0-9].json'
 #dateFileFormat='/[0-9][0-9][0-9][0-9]_*[0-9][0-9]_[0-9][0-9]_BR.json'
+
 
 nDays=14
 # Length of window for top tweets
@@ -23,13 +24,15 @@ if '-n' in sys.argv:
 if '-d' in sys.argv:
     i=(sys.argv).index('-d')
     dataDirectory=sys.argv[i+1]
+    pickleFileName=dataDirectory+'counters.dat'
     print 'SET DATA DIRECTORY',dataDirectory
     time.sleep(1)
-
+   
 if '-C' in sys.argv:
     i=(sys.argv).index('-C')
     chosenCountry=sys.argv[i+1]
     dateFileFormat=dateFileFormat.partition('.json')[0]+'_'+chosenCountry+'.json'
+    pickleFileName=dataDirectory+'counters_'+chosenCountry+'.dat'
     print 'SET COUNTRY',chosenCountry
     time.sleep(1)
 
@@ -253,6 +256,15 @@ def main():
 ##############
 
     languageDirectories=glob.glob(dataDirectory+'*')
+
+    pickleFile=open(pickleFileName,'r')
+    data=pickle.load(pickleFile)
+    topics=[k for k in data['tw']['topics'].keys()]
+    topicHash=dict([(k,k) for k in topics])
+    pickleFile.close()
+
+    print topics
+    print topicHash
     
 #    for l in languageDirectories:
 #        dateFileNames=glob.glob(l+dateFileFormat)

@@ -246,6 +246,14 @@ def processFile(l,f,dateFileHash,counterDict,cartoFile,deletionsFile,dcFile):
                 except:
                     nLocationError+=1
                 ###############################################   
+                ''' Country counts'''
+                try:
+                    tweetCountry=message['twitter']['place']['country']
+                    counterDict['tw']['country'][tweetCountry]+=1
+                except:
+                    pass
+
+                ###############################################   
                 '''Topics by country'''
                 try:
                     tweetTopics=message['interaction']['tag_tree']['topic']
@@ -717,6 +725,7 @@ def initCounters(l):
         inFile=open(l+counterFileName,'r')
         
         data=pickle.load(inFile)
+        twCountryCounter=data['tw']['country']
         twTopicSums=data['tw']['topic_sums']
         twTopicColocCounter=data['tw']['topic_coloc']        
         twTopicCountryCounter=data['tw']['topicCountry']        
@@ -738,6 +747,7 @@ def initCounters(l):
         twLinkCounter=data['tw']['links']
 
         
+        fbCountryCounter=data['fb']['country']
         fbTimeSeries=data['fb']['time']
         fbPosSeries=data['fb']['pos']
         fbNegSeries=data['fb']['neg']
@@ -778,6 +788,7 @@ def initCounters(l):
         fbPosSeries=None
         fbNegSeries=None
         fbIdSet=set([])
+        fbCountryCounter=collections.defaultdict(int)
         fbTopicCounter={}
         fbTopicCountryCounter={}
         fbGenderTopicCounter={}
@@ -803,6 +814,7 @@ def initCounters(l):
         twTopicSums=collections.defaultdict(int)
         twLinksCounter=collections.defaultdict(int)
         twTopicCounter={}
+        twCountryCounter=collections.defaultdict(int)
         twTopicCountryCounter={}
         twGenderTopicCounter={}
         twTimeSeries=None
@@ -813,6 +825,7 @@ def initCounters(l):
         
         dsFileSet=Set()
 
+    counterDict['tw']['country']=twCountryCounter
     counterDict['tw']['topic_sums']=twTopicSums
     counterDict['tw']['topic_coloc']=twTopicColocCounter
     counterDict['tw']['hashtags']=twHashTagCounter
@@ -833,6 +846,7 @@ def initCounters(l):
     counterDict['tw']['genderTopic']=twGenderTopicCounter
     counterDict['tw']['languages']=twLanguageCounter
 
+    counterDict['fb']['country']=fbCountryCounter
     counterDict['fb']['time']=fbTimeSeries
     counterDict['fb']['pos']=fbPosSeries
     counterDict['fb']['neg']=fbNegSeries
