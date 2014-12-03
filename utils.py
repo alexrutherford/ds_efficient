@@ -1,13 +1,26 @@
 '''A bunch of simple convenience functions'''
-import operator
-import time,csv,traceback
+import operator,re
+import time,csv,traceback,glob,os
 from geopy import distance
 
 stopWords=['a','the','of']
 
 posRe=r':-\)|:\)'
 negRe=r':-\(|:\('
-cleanRe=r'\n|\r\n'
+cleanRe=r'\@|\!|\:|\;|\>|\<|\.|\/|\?'
+spaceRe=r'\r|\r\n|\.|\,|\"|\'|\`|\{|\}|\(|\)|\[|\]'
+
+#########
+def removeDailyFiles(dataDirectory,dateFileFormat):
+    nRemoved=0        
+    for f in glob.glob(dataDirectory+dateFileFormat):
+        print f
+        os.remove(f)
+        nRemoved+=1
+    print 'REMOVED',nRemoved
+    time.sleep(3)
+#########
+
 
 #############
 def getClosestCity(cities,tCoords,tol=150):
@@ -28,7 +41,8 @@ def getClosestCity(cities,tCoords,tol=150):
             closest=c[0]
             cCoords=c[1:]
     if dist<tol:
-        return cCoords,closest
+        return cCoords,closest.partition(',')[0]
+        # In case city name includes state separated by comma, then throw away state
     else:
         return None,None
 #############
@@ -62,7 +76,7 @@ def getISODate(dummyTime):
     '''
     # Get from this format: Thu, 02 Jan 2014 16:26:15 +0000...
     timeStruct=time.strptime(dummyTime,'%a, %d %b %Y %H:%M:%S +0000')
-    return str(timeStruct[0])+'-'+str(timeStruct[1])+'-'+str(timeStruct[2])+' '+str(timeStruct[3])+':'+str(timeStruct[4])+':'+str(timeStruct[5])
+    return str(timeStruct[0])+'-'+str(timeStruct[1]).zfill(2)+'-'+str(timeStruct[2]).zfill(2)+' '+str(timeStruct[3]).zfill(2)+':'+str(timeStruct[4]).zfill(2)+':'+str(timeStruct[5]).zfill(2)
     # ...into this format mm/DD/YYYYYYY-MM-DD hh:mm:ss
 #############
 def printTop(d,n=10):
@@ -82,3 +96,9 @@ def hasGeolocation(t):
             return True
     return False
 
+###############
+def cleanText(t):
+###############
+   t=re.sub(cleanRe,'',t.lower(),re.U) 
+   t=re.sub(spaceRe,' ',t.lower(),re.U) 
+   return t

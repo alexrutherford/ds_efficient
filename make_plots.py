@@ -26,29 +26,40 @@ import itertools
 plotColours=['#1B6E44','#6D1431','#FF5500','#5D6263','#009D97','#c84699','#71be45','#3F8CBC','#FFC200']
 # Currently have 9 nice colours, colours will be repeated if more than 9 topics
 
-inDirectory='../data_test/english/'
+import argparse
+parser=argparse.ArgumentParser()
+
+
+parser.add_argument("input",help='specify input directory') # Compulsory
+parser.add_argument("-c","--cities",help='specify file of city names for snapping')
+parser.add_argument("-H","--hack",help='specify topic hack',action="store_true")
+parser.add_argument("--clean",help='flag to delete existing daily files and counter objects in input directory',action='store_true')
+parser.add_argument("-C","--country",help='specify 2 letter uppercase ISO codes of country',nargs='+')
+parser.add_argument("-L","--language",help='specify 2 letter lowercase codes of languages',nargs='+')
+args=parser.parse_args()
+
+inDirectory=args.input
 inFileName=inDirectory+'counters.dat'
 #inFileName=inDirectory+'counters_BR.dat'
 
-if '-d' in sys.argv:
-    # Set input directory
-    i=(sys.argv).index('-d')
-    inDirectory=sys.argv[i+1]
-    inFileName=inDirectory+'counters.dat'
-    print 'SET INPUT FILE',inFileName
-    time.sleep(1)
+chosenCountry=args.country
 
-if '-C' in sys.argv:
-    # Flag for filtering by country
-    chosenCountry=sys.argv[(sys.argv).index('-C')+1]
-    inFileName=inDirectory+'counters_'+chosenCountry+'.dat'
-    print 'ADDED COUNTRY FLAG',chosenCountry
-    print 'SET INPUT FILE',inFileName
-    time.sleep(1)
-    # If a flag used to filter by country
-    # need to change the format of daily files
+chosenLanguages=args.language
 
-if '-clean' in sys.argv:
+chosenLanguagesCountries=[]
+if chosenLanguages:
+    chosenLanguagesCountries.extend([c.lower() for c in chosenLanguages])
+if chosenCountry:
+    chosenLanguagesCountries.extend([c.upper() for c in chosenCountry])
+if len(chosenLanguagesCountries)==0:chosenLanguagesCountries=None
+
+print chosenLanguagesCountries
+
+if chosenLanguagesCountries:
+    inFileName=inDirectory+'/counters_'+'_'.join(chosenLanguagesCountries)+'.dat'
+# Have a separate counter file for each country
+
+if args.clean:
     # Clean out plots and data directories 
     try:
         os.system('rm -r '+inDirectory+'data/')     
@@ -85,15 +96,11 @@ except:
     print 'plots AND data DIRECTORIES ALREADY EXIST'
 # Where to place plots/data
 
-chosenLanguage='english'
+#chosenLanguage='english'
+suffix=''
+if chosenLanguagesCountries:
+    suffix='_'.join(chosenLanguagesCountries)
 # Use this flag if we want to distinguish between plots from several corpora
-
-if '-l' in sys.argv:
-    # Flag for filtering by language
-    i=(sys.argv).index('-l')
-    chosenLanguage=sys.argv[i+1]
-    print 'ADDED LANG FLAG',chosenLanguage
-    time.sleep(1)
 
 #######
 def writeTop(counter,f):
@@ -140,9 +147,9 @@ def main():
         ax.set_yticks([i+0.5 for i in range(len(topicSums))])
         ax.set_xlabel('Number of Tweets')
         ax.set_yticklabels([v[0] for v in topicSums]);
-        plt.savefig(inDirectory+'plots/'+source+'_topics_'+chosenLanguage+'.png', bbox_inches='tight',dpi=200)
+        plt.savefig(inDirectory+'plots/'+source+'_topics_'+suffix+'.png', bbox_inches='tight',dpi=200)
         # Get sum of topics, use this to plot in some kind of order
-        writeTop(topicSums,inDirectory+'data/'+source+'_topics_'+chosenLanguage+'.tsv')
+        writeTop(topicSums,inDirectory+'data/'+source+'_topics_'+suffix+'.tsv')
         #####################
         # Plot total voume time series
 
@@ -156,8 +163,8 @@ def main():
             ax=data[source]['time'][0:-1].plot(legend=False,figsize=(14,8),style=gpBlue,lw=7)
             ax.grid(color='lightgray', alpha=0.4)
             ax.axis(ymin=0)
-            plt.savefig(inDirectory+'plots/'+source+'_total_'+chosenLanguage+'.png',dpi=60)
-            mpld3.save_html(totalSeriesFig, inDirectory+'plots/'+source+'_total_'+chosenLanguage+'.php', figid=chosenLanguage+"TotalSeriesFig")
+            plt.savefig(inDirectory+'plots/'+source+'_total_'+suffix+'.png',dpi=60)
+            mpld3.save_html(totalSeriesFig, inDirectory+'plots/'+source+'_total_'+suffix+'.php', figid=suffix+"TotalSeriesFig")
         except:
             print source,'TOTAL FAILED'
             print traceback.print_exc()
@@ -176,7 +183,7 @@ def main():
                     ax.grid(color='lightgray', alpha=0.7)
                     xlabels = ax.get_xticklabels()
                     ylabels = ax.get_yticklabels()
-                    mpld3.save_html(allSeriesFig, inDirectory+'plots/'+source+'_all_'+chosenLanguage+'.php', figid=chosenLanguage+"AllSeriesFig")
+                    mpld3.save_html(allSeriesFig, inDirectory+'plots/'+source+'_all_'+suffix+'.php', figid=suffix+"AllSeriesFig")
         except:
             print source,'ALL TOPICS FAILED'
         ######################
@@ -195,7 +202,7 @@ def main():
                 ax=b.plot(label=a,legend=False,figsize=(20,12),style=col,lw=7)
                 xlabels = ax.get_xticklabels()
                 ylabels = ax.get_yticklabels()
-                plt.savefig(inDirectory+'plots/'+source+'_'+a.replace('/','_')+'_'+chosenLanguage+'.png',dpi=60)
+                plt.savefig(inDirectory+'plots/'+source+'_'+a.replace('/','_')+'_'+suffix+'.png',dpi=60)
 #        print '\t',tS["webDir"]+'/charts/PLOT_'+chosenLanguage+'_'+a.replace('/','_')+'.png'
                 plt.cla();
 
@@ -210,7 +217,7 @@ def main():
             ax.grid(color='lightgray', alpha=0.7)
             xlabels = ax.get_xticklabels()
             ylabels = ax.get_yticklabels()
-            mpld3.save_html(sentimentFig, inDirectory+'plots/'+source+'_sentiment_'+chosenLanguage+'.php', figid=chosenLanguage+"sentimentFig")
+            mpld3.save_html(sentimentFig, inDirectory+'plots/'+source+'_sentiment_'+suffix+'.php', figid=suffix+"sentimentFig")
         except:
             print source,'SENTIMENT FAILED'
         #######################
@@ -228,8 +235,8 @@ def main():
             ax.set_yticks([i+0.5 for i in range(10)])
             ax.set_xlabel('Number of Tweets')
             ax.set_yticklabels(['#'+v[0] for v in data[source]['hashtags'][-10:]]);
-            plt.savefig(inDirectory+'plots/'+source+'_hashtags_'+chosenLanguage+'.png', bbox_inches='tight',dpi=200)
-            writeTop(data[source]['hashtags'][-10:],inDirectory+'data/'+source+'_hashtags_'+chosenLanguage+'.tsv')
+            plt.savefig(inDirectory+'plots/'+source+'_hashtags_'+suffix+'.png', bbox_inches='tight',dpi=200)
+            writeTop(data[source]['hashtags'][-10:],inDirectory+'data/'+source+'_hashtags_'+suffix+'.tsv')
         except:
             print source,'HASHTAGS FAILED'
         ##########################
@@ -246,8 +253,8 @@ def main():
             ax.set_yticks([i+0.5 for i in range(10)])
             ax.set_xlabel('Number of Tweets')
             ax.set_yticklabels([v[0] for v in data[source]['links'][-10:]]);
-            plt.savefig(inDirectory+'plots/'+source+'_links_'+chosenLanguage+'.png', bbox_inches='tight',dpi=200)
-            writeTop(data[source]['links'][-10:],inDirectory+'data/'+source+'_rawDomains_'+chosenLanguage+'.tsv')
+            plt.savefig(inDirectory+'plots/'+source+'_links_'+suffix+'.png', bbox_inches='tight',dpi=200)
+            writeTop(data[source]['links'][-10:],inDirectory+'data/'+source+'_rawDomains_'+suffix+'.tsv')
         except:
             print 'LINKS FAILED',source
 
@@ -264,8 +271,8 @@ def main():
             ax.set_yticks([i+0.5 for i in range(10)])
             ax.set_xlabel('Number of Tweets')
             ax.set_yticklabels([v[0] for v in data[source]['domains'][-10:]]);
-            plt.savefig(inDirectory+'plots/'+source+'_domains_'+chosenLanguage+'.png', bbox_inches='tight',dpi=200)
-            writeTop(data[source]['domains'][-10:],inDirectory+'data/'+source+'_domains_'+chosenLanguage+'.tsv')
+            plt.savefig(inDirectory+'plots/'+source+'_domains_'+suffix+'.png', bbox_inches='tight',dpi=200)
+            writeTop(data[source]['domains'][-10:],inDirectory+'data/'+source+'_domains_'+suffix+'.tsv')
         except:
             print 'DOMAINS FAILED',source
         ###########################
@@ -282,7 +289,7 @@ def main():
             ax.set_yticks([i+0.5 for i in range(10)])
             ax.set_xlabel('Number of Tweets')
             ax.set_yticklabels([v[0].decode('utf-8') for v in data[source]['unigrams'][-10:]]);
-            plt.savefig(inDirectory+'plots/'+source+'_unigrams_'+chosenLanguage+'.png', bbox_inches='tight',dpi=200)
+            plt.savefig(inDirectory+'plots/'+source+'_unigrams_'+suffix+'.png', bbox_inches='tight',dpi=200)
         except:
             print source,'UNIGRAMS FAILED'
         ###########################
@@ -299,8 +306,8 @@ def main():
             ax.set_yticks([i+0.5 for i in range(10)])
             ax.set_xlabel('Number of Tweets')
             ax.set_yticklabels(['@'+v[0] for v in data[source]['users'][-10:]]);
-            plt.savefig(inDirectory+'plots/'+source+'_users_'+chosenLanguage+'.png', bbox_inches='tight',dpi=200)
-            writeTop(data[source]['users'][-10:],inDirectory+'data/'+source+'_accounts_'+chosenLanguage+'.tsv')
+            plt.savefig(inDirectory+'plots/'+source+'_users_'+suffix+'.png', bbox_inches='tight',dpi=200)
+            writeTop(data[source]['users'][-10:],inDirectory+'data/'+source+'_accounts_'+suffix+'.tsv')
         except:
             print source,'USERS FAILED'
 
@@ -318,8 +325,8 @@ def main():
             ax.set_yticks([i+0.5 for i in range(10)])
             ax.set_xlabel('Number of Tweets')
             ax.set_yticklabels(['@'+v[0] for v in data[source]['mentions'][-10:]]);
-            plt.savefig(inDirectory+'plots/'+source+'_mentions_'+chosenLanguage+'.png', bbox_inches='tight',dpi=200)
-            writeTop(data[source]['mentions'][-10:],inDirectory+'data/'+source+'_mentions_'+chosenLanguage+'.tsv')
+            plt.savefig(inDirectory+'plots/'+source+'_mentions_'+suffix+'.png', bbox_inches='tight',dpi=200)
+            writeTop(data[source]['mentions'][-10:],inDirectory+'data/'+source+'_mentions_'+suffix+'.tsv')
         except:
             print source,'MENTIONS FAILED'
 
@@ -338,7 +345,7 @@ def main():
             ax.set_yticks([i+0.5 for i in range(10)])
             ax.set_xlabel('Number of Tweets')
             ax.set_yticklabels([v[0][0].decode('utf-8')+' '+v[0][1].decode('utf-8') for v in data[source]['bigrams'][-10:]]);
-            plt.savefig(inDirectory+'plots/'+source+'_bigrams_'+chosenLanguage+'.png', bbox_inches='tight',dpi=200)
+            plt.savefig(inDirectory+'plots/'+source+'_bigrams_'+suffix+'.png', bbox_inches='tight',dpi=200)
         except:
             print source,'BIGRAMS FAILED'
         ####################
@@ -357,7 +364,7 @@ def main():
             ax.set_yticks([i+0.5 for i in range(10)])
             ax.set_xlabel('Number of Tweets')
             ax.set_yticklabels([v[0][0].decode('utf-8')+' '+v[0][1].decode('utf-8')+' '+v[0][2].decode('utf-8') for v in data[source]['trigrams'][-10:]]);
-            plt.savefig(inDirectory+'plots/'+source+'_trigrams_'+chosenLanguage+'.png', bbox_inches='tight',dpi=200)
+            plt.savefig(inDirectory+'plots/'+source+'_trigrams_'+suffix+'.png', bbox_inches='tight',dpi=200)
         except:
             print source,'TRIGRAMS FAILED'
         print '--------'
@@ -368,7 +375,7 @@ def main():
         data['fb']['time'][0:-1].plot(label='FB',legend=True)
         data['tw']['time'][0:-1].plot(label='TW',legend=True)
         (data['tw']['time'][0:-1]+data['fb']['time']).plot(label='ALL',legend=True)
-        plt.savefig(inDirectory+'plots/total_combined.png',bbox_inches='tight',dpi=200)
+        plt.savefig(inDirectory+'plots/total_combined_'+suffix+'.png',bbox_inches='tight',dpi=200)
     except:
         print 'COMBINED PLOT FAILED'
 if __name__=='__main__':
