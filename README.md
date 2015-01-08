@@ -7,13 +7,13 @@ Cycles through all files from DataSift ```DataSift*json``` and places messages i
 Considers tweet IDs in ```deletions.csv```, removes from daily files and adjusts counters.
 
 3. ```python get_top_tweets.py```
-Looks through daily files produced as output from ```process_ds_files.py``` and counts tweets from last n days. Writes out IDs to file for embedding.  
+Looks through daily files produced as output from ```process_ds_files.py``` and counts tweets from last n days. Writes out IDs to file for embedding.   
 
 4. ```query_dump.ipynb```
 Reads in serialised data from ```counters.dat``` and produces plots interatively.  
 
 5. ```make_plots.py```
-Reads in serialised data from ```counters.dat``` and produces plots and data files for web pages. Pass in directory with pickle file with ```-d <dataDirectory>```.  
+Reads in serialised data from ```counters.dat``` and produces plots and data files for web pages. Pass in directory with pickle file with ```-d <dataDirectory>```.   
 
 #Usage
 * Location of data specified by ```dataDirectory``` as a compulsory argument to ```process_ds_files.py```. If several corpora exist (typically corresponding to different languages) then invoke separately for each one (only overhead for running multiple times is parsing of geolocation world pickle file).  All directories matching ```20[0-9]{2,2}-[0-9]{2,2}``` will be examined and all files within matching ```DataSift*json``` will be considered. This produces all output files in ```dataDirectory```.
