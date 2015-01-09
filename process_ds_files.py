@@ -9,6 +9,8 @@ alex@unglobalpulse.org
 '''
 import sys,time,csv
 sys.path.append('/mnt/home/ubuntu/projects/tools/')
+from add_demographics_to_tw_profiles import getQualifyingTaxonomy
+
 import gender,geolocator
 from utils import *
 import glob,os.path,re,json,collections,operator,random
@@ -22,6 +24,7 @@ import langid,itertools
 import argparse
 parser=argparse.ArgumentParser()
 
+taxonomyDict=None
 
 genderClassifier=gender.Gender()
 
@@ -45,6 +48,8 @@ cities=None
 parser.add_argument("input",help='specify input directory') # Compulsory
 parser.add_argument("-c","--cities",help='specify file of city names for snapping')
 parser.add_argument("-H","--hack",help='specify topic hack',action="store_true")
+parser.add_argument("-T","--topics",help='specify ex-post topic tagging',action="store_true")
+
 parser.add_argument("--clean",help='flag to delete existing daily files and counter objects in input directory',action='store_true')
 parser.add_argument("-C","--country",help='specify 2 letter uppercase ISO codes of country',nargs='+')
 parser.add_argument("-L","--language",help='specify 2 letter lowercase codes of languages',nargs='+')
@@ -60,9 +65,18 @@ if cityFileName:cities,nCityError=getCities(cityFileName,geo)
 
 topicHack=args.hack
 
+if args.topics:
+    taxonomyDict=getQualifyingTaxonomy(inDir='/home/ubuntu/projects/gates/ipynb/')
+    for k,v in taxonomyDict.items():
+        for kk,vv in taxonomyDict[k].items():
+            if kk in [u'family',u'health-workers',u'ngo','journalists']:
+                del taxonomyDict[k][kk]
+# Use this to categorise content ex-post
+
 chosenCountry=args.country
 
 chosenLanguages=args.language
+if chosenLanguages:chosenLanguages=[l.lower() for l in chosenLanguages]
 
 chosenLanguagesCountries=[]
 if chosenLanguages:
@@ -99,6 +113,37 @@ if args.clean:
         print 'NO OLD CARTO FILE'
 
 #############
+def getTopicsExPost(message):
+#############
+    content=None
+    
+    # Twitter
+    try:
+        content=message['interaction']['content'].encode('utf-8').lower()
+    except:
+        pass
+    
+    # Facebook
+    try:
+        content=message['interaction']['content'].encode('utf-8').lower()
+    except:
+        pass
+
+    content=re.sub(cleanRe,' ',content)
+#    print 'CONTENT',content
+    messageTopics=set()
+
+    for lang in taxonomyDict.keys():
+#        print '\t',lang
+        for k,v in taxonomyDict[lang].items():
+#            print '\t',k
+#            print '\t\t',v
+            if re.search(v,content):
+                messageTopics.add(k)
+#                print 'MATCHED',k,'IN',lang
+#                print messageTopics
+    return list(messageTopics)
+#############
 def dateFileName(timeStamp,l):
 #############
     '''Takes datetime object, language directory stem and chosen country for filtering 
@@ -120,7 +165,7 @@ def fileStream(l):
         if len(files)>0 and re.match(l+r'2014-[0-9]{2,2}',root) and not re.search(r'test',root):
         # Find all files
 #            print root,dirs,files
-            for f in files[0:1]:
+            for f in files:
                 if re.match(r'DataSift',f):
                 # Check that they are actual datasift files
 #                        print '\t',root+f
@@ -176,18 +221,24 @@ def processFile(l,f,dateFileHash,counterDict,cartoFile,deletionsFile,dcFile):
         ###########
         '''choose a topic here '''
         try:
-            if not topicHack:
+            if not topicHack and  not taxonomyDict:
                 messageTopics=message['interaction']['tag_tree']['topic']
+            elif taxonomyDict:
+                messageTopics=[]
+                messageTopics=getTopicsExPost(message)
+#                if len(messageTopics)>0:print messageTopics
             else:
                 messageTopics=message['interaction']['tag_tree']['topic'].items()
                 messageTopics=[m[0] for m in messageTopics]
             # We need this for Brazil; topics and sub-topics
-
-            rawTopics=[m[0]+'_'+m[1][0] for m in messageTopics] # We need these for dc.js file
+            
+            if taxonomyDict:
+                rawTopics=messageTopics
+            else:
+                rawTopics=[m[0]+'_'+m[1][0] for m in messageTopics] # We need these for dc.js file
    
             messageTopics=[m.lower() for m in messageTopics]
-
-            
+            message['topics']=messageTopics 
             if len(messageTopics)==1:
 #                chosenTopic=messageTopics[0][0]+'_'+messageTopics[0][1][0]
                 chosenTopic=messageTopics[0]
@@ -203,6 +254,7 @@ def processFile(l,f,dateFileHash,counterDict,cartoFile,deletionsFile,dcFile):
                 print 'WOAH',rawTopics,messageTopics
                 time.sleep(1000)
         except:
+#            print traceback.print_exc()
             nTopicError+=1
         ##############
         if not 'deleted' in message.keys() and not 'facebook' in message.keys():
@@ -839,33 +891,33 @@ def initCounters(l):
         fbPosSeries=None
         fbNegSeries=None
         fbIdSet=set([])
-        fbCountryCounter=collections.defaultdict(int)
+        fbCountryCounter=collections.Counter()
         fbTopicCounter={}
         fbTopicCountryCounter={}
         fbGenderTopicCounter={}
-        fbTopicSums=collections.defaultdict(int)
-        fbUnigramCounter=collections.defaultdict(int)
-        fbBigramCounter=collections.defaultdict(int)
-        fbTrigramCounter=collections.defaultdict(int)
-        fbUserCounter=collections.defaultdict(int)
-        fbLanguageCounter=collections.defaultdict(int)
-        fbDomainCounter=collections.defaultdict(int)
-        fbLinkCounter=collections.defaultdict(int)
+        fbTopicSums=collections.Counter()
+        fbUnigramCounter=collections.Counter()
+        fbBigramCounter=collections.Counter()
+        fbTrigramCounter=collections.Counter()
+        fbUserCounter=collections.Counter()
+        fbLanguageCounter=collections.Counter()
+        fbDomainCounter=collections.Counter()
+        fbLinkCounter=collections.Counter()
 
-        twTopicColocCounter=collections.defaultdict(int)
-        twHashTagCounter=collections.defaultdict(int)
-        twDomainCounter=collections.defaultdict(int)
-        twRawDomainCounter=collections.defaultdict(int)
-        twMentionCounter=collections.defaultdict(int)
-        twUnigramCounter=collections.defaultdict(int)
-        twBigramCounter=collections.defaultdict(int)
-        twTrigramCounter=collections.defaultdict(int)
-        twUserCounter=collections.defaultdict(int)
-        twLanguageCounter=collections.defaultdict(int)
-        twTopicSums=collections.defaultdict(int)
-        twLinkCounter=collections.defaultdict(int)
+        twTopicColocCounter=collections.Counter()
+        twHashTagCounter=collections.Counter()
+        twDomainCounter=collections.Counter()
+        twRawDomainCounter=collections.Counter()
+        twMentionCounter=collections.Counter()
+        twUnigramCounter=collections.Counter()
+        twBigramCounter=collections.Counter()
+        twTrigramCounter=collections.Counter()
+        twUserCounter=collections.Counter()
+        twLanguageCounter=collections.Counter()
+        twTopicSums=collections.Counter()
+        twLinkCounter=collections.Counter()
         twTopicCounter={}
-        twCountryCounter=collections.defaultdict(int)
+        twCountryCounter=collections.Counter()
         twTopicCountryCounter={}
         twGenderTopicCounter={}
         twTimeSeries=None
