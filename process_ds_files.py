@@ -22,8 +22,6 @@ import langid,itertools
 import argparse
 parser=argparse.ArgumentParser()
 
-geo=geolocator.Geolocator()
-geo.init()
 
 genderClassifier=gender.Gender()
 
@@ -51,6 +49,9 @@ parser.add_argument("--clean",help='flag to delete existing daily files and coun
 parser.add_argument("-C","--country",help='specify 2 letter uppercase ISO codes of country',nargs='+')
 parser.add_argument("-L","--language",help='specify 2 letter lowercase codes of languages',nargs='+')
 args=parser.parse_args()
+
+geo=geolocator.Geolocator()
+geo.init()
 
 dataDirectory=args.input
 
@@ -116,10 +117,10 @@ def fileStream(l):
         print root
     # Recursively looks through language directories 
     # in root data directory to find all DatSift files
-        if len(files)>0 and re.match(l+'2014-[0-9][0-9]',root):
+        if len(files)>0 and re.match(l+r'2014-[0-9]{2,2}',root) and not re.search(r'test',root):
         # Find all files
 #            print root,dirs,files
-            for f in files[0:20]:
+            for f in files[0:1]:
                 if re.match(r'DataSift',f):
                 # Check that they are actual datasift files
 #                        print '\t',root+f
@@ -208,11 +209,13 @@ def processFile(l,f,dateFileHash,counterDict,cartoFile,deletionsFile,dcFile):
         # Catch deletions and facebook content
             tweetContent=message['interaction']['content'].encode('utf-8')
             tweetContent=re.sub(cleanRe,' ',tweetContent)
+            tweetContentNoLink=re.sub(linkRe,'',tweetContent)
             
             languageMatch=True
             if chosenLanguages:languageMatch=False
                     
-            lang1,lang2,lang3='','','' 
+            lang1,lang2,lang3,lang4='','','','' 
+            
             try:
                 lang1=message['language']['tag']
             except:pass
@@ -221,18 +224,22 @@ def processFile(l,f,dateFileHash,counterDict,cartoFile,deletionsFile,dcFile):
             except:pass
             try:
                 lang3=langid.classify(tweetContent)[0]
-                if str(lang3) in chosenLanguages:
+                lang4=langid.classify(tweetContentNoLink)[0]
+                if not chosenLanguages:
                     languageMatch=True
-            except:pass
+                else:
+                    if str(lang1) in chosenLanguages:
+                  # TODO choose which language detection scheme to trust at run time
+                        languageMatch=True
+            except:
+            #  pass
+              print traceback.print_exc()
             # Count detected language from twitter and DataSift and through langid
             
             if not message['interaction']['id'] in counterDict['tw']['ids']:
                 nTotal+=1
                 counterDict['tw']['ids'].add(message['interaction']['id'])
                 
-#                counterDict['tw']['languages'][(lang1,lang2,lang3)]+=1
-                counterDict['tw']['languages'][lang3]+=1
-
                 message['ungp']={}
                 # For adding our own augmentations
                 try:
@@ -257,11 +264,18 @@ def processFile(l,f,dateFileHash,counterDict,cartoFile,deletionsFile,dcFile):
                         message['ungp']['geolocation']=loc[0][3]
                 except:
                     nLocationError+=1
+
+                ###############################################   
+                '''Count language if in country'''
+                if inCountry:
+                    counterDict['tw']['languages'][(lang1,lang2,lang3,lang4)]+=1
                 ###############################################   
                 ''' Country counts'''
                 try:
-                    tweetCountry=message['twitter']['place']['country']
-                    counterDict['tw']['country'][tweetCountry]+=1
+#                    tweetCountry=message['twitter']['place']['country']
+#                    counterDict['tw']['country'][tweetCountry]+=1
+                    counterDict['tw']['country'][message['ungp']['geolocation']]+=1
+
                 except:
                     pass
 
@@ -434,7 +448,7 @@ def processFile(l,f,dateFileHash,counterDict,cartoFile,deletionsFile,dcFile):
                 fbContent=message['interaction']['content'].encode('utf-8')
                 fbContent=re.sub(cleanRe,' ',fbContent)
 
-                lang1,lang2,lang3='','','' 
+                lang1,lang2,lang3,lang4='','','','' 
                 try:
                     lang1=message['language']['tag']
                 except:pass
@@ -443,7 +457,7 @@ def processFile(l,f,dateFileHash,counterDict,cartoFile,deletionsFile,dcFile):
                 except:pass
                 try:
                     lang3=langid.classify(fbContent)[0]
-
+                    lang4=langid.classify(fbContentNoLink)[0]
                     if str(lang3) in chosenLanguages:
                         languageMatch=True
                 except:
@@ -459,7 +473,7 @@ def processFile(l,f,dateFileHash,counterDict,cartoFile,deletionsFile,dcFile):
                 
                 counterDict['fb']['ids'].add(message['interaction']['id'])
                 
-                counterDict['fb']['languages'][(lang1,lang2,lang3)]+=1
+                counterDict['fb']['languages'][(lang1,lang2,lang3,lang4)]+=1
 
                 message['ungp']={}
                 # For adding our own augmentations
@@ -992,6 +1006,7 @@ def main():
         print 'DELETED',nDeletes
         print 'TOTAL NEW',nTotal
         print 'TOTAL FACEBOOK',nFacebook
+        print 'TOTAL DIFF',nTotal-nFacebook
 
     for d in dateFileHash.values():
         d.close()
